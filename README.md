@@ -1,6 +1,6 @@
 # MLSF : solveur DPLL et Meowdoku (partie I)
 
-Sujet : `sujet_projet.pdf`. Python 3.12, aucune dépendance. Consignes de travail : `AGENT.MD`. État d'avancement : `memories.md`.
+Sujet : `sujet_projet.pdf`. Python 3.12, aucune dépendance. Consignes de travail : `AGENT.MD`. État d'avancement : `memories.md`. Correspondance sujet -> fichiers : `QUESTIONS.md`.
 
 ## Fichiers
 | Fichier | Rôle |
