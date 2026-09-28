@@ -41,7 +41,7 @@ def encode(grille):
                 clauses.append([-var(*a, n), -var(*b, n)])
 
     # 2. Chaque région a au moins un chat : (x_a ∨ x_b ∨ ...)
-    for nom in {nom for ligne in grille for nom in ligne}:
+    for nom in dict.fromkeys(nom for ligne in grille for nom in ligne):   # ordre de 1re apparition
         clauses.append([var(i, j, n) for i, j in cases if grille[i][j] == nom])
 
     return clauses

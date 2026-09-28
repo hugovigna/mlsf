@@ -55,21 +55,31 @@ def dpll_sat(F, choix=choix_aleatoire):
     return dpll_sat(simplifier(F, l), choix) or dpll_sat(simplifier(F, -l), choix)
 
 
-def dpll(F, choix=choix_aleatoire):
-    """Algorithme 2 : (True, valuation) si F est satisfiable, (False, None) sinon."""
+def dpll(F, choix=choix_aleatoire, stats=None):
+    """Algorithme 2/3 : (True, valuation) si F est satisfiable, (False, None) sinon.
+    `stats` (Counter facultatif) compte : unitaires, purs, decisions, retours (2e branche exploree)."""
     if frozenset() in F:
         return False, None
     if not F:
         return True, set()
     l = trouver_unitaire(F)
-    if l is None:
-        l = trouver_pur(F)
     if l is not None:
-        s, v = dpll(simplifier(F, l), choix)
+        if stats is not None:
+            stats["unitaires"] += 1
+    else:
+        l = trouver_pur(F)
+        if l is not None and stats is not None:
+            stats["purs"] += 1
+    if l is not None:
+        s, v = dpll(simplifier(F, l), choix, stats)
         return (True, v | {l}) if s else (False, None)
     l = choix(F)
-    s, v = dpll(simplifier(F, l), choix)
+    if stats is not None:
+        stats["decisions"] += 1
+    s, v = dpll(simplifier(F, l), choix, stats)
     if s:
         return True, v | {l}
-    s, v = dpll(simplifier(F, -l), choix)
+    if stats is not None:
+        stats["retours"] += 1
+    s, v = dpll(simplifier(F, -l), choix, stats)
     return (True, v | {-l}) if s else (False, None)

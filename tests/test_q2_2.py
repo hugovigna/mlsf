@@ -25,6 +25,17 @@ class Q2_2(unittest.TestCase):
         self.assertFalse(dpll.dpll_sat({frozenset()}))
         self.assertFalse(dpll.dpll_sat({frozenset({1}), frozenset({-1})}))
 
+    def test_compteurs(self):
+        from collections import Counter
+        st = Counter()
+        F = {frozenset({1}), frozenset({-1, 2})}
+        self.assertEqual(dpll.dpll(F, stats=st)[0], True)
+        self.assertEqual((st["unitaires"], st["decisions"], st["retours"]), (2, 0, 0))
+        st = Counter()   # (x1 v x2)(x1 v -x2)(-x1 v x2)(-x1 v -x2) : pas de pur, pas d'unitaire, insatisfiable
+        F = {frozenset({a, b}) for a in (1, -1) for b in (2, -2)}
+        self.assertFalse(dpll.dpll(F, lambda F: 1, st)[0])
+        self.assertEqual((st["decisions"], st["retours"], st["purs"]), (1, 1, 0))
+
     def test_aleatoire_vs_force_brute(self):
         rng = random.Random(0)
         for _ in range(300):

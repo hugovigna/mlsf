@@ -27,7 +27,7 @@ def gen():
         for k in range(10):
             cl = [[rng.choice([-1, 1]) * v for v in rng.sample(range(1, n + 1), 3)] for _ in range(round(4.26 * n))]
             meowdoku.write_dimacs(f"{DOSSIER_GEN}/3sat_n{n}_{k}.cnf", n, cl)
-    for n in (5, 6, 8, 10, 12):
+    for n in (5, 6, 8, 10, 12, 14):
         for k in range(10):
             g, _ = generator.generate(n, k)          # grille avec solution plantée : SAT
             meowdoku.write_dimacs(f"{DOSSIER_GEN}/meow-sat_n{n}_{k}.cnf", n * n, meowdoku.encode(g))
