@@ -1,0 +1,9 @@
+c N=6 graine=1
+GRID 6 6
+ZONES A B C D E F
+B B A C C C
+B B B C C C
+B B B D C C
+B E E D D C
+E E E D D D
+E E E E F F
