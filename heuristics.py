@@ -15,7 +15,7 @@ from collections import Counter, defaultdict
 from dpll import variables
 
 
-def _occ(F):
+def _occ(F): # compte les occurences de chaque littéral de F
     return Counter(l for c in F for l in c)
 
 
@@ -42,7 +42,7 @@ def score_h7(F):
     return {l: (w,) for l, w in poids.items()}
 
 
-def _cle(sc):
+def _cle(sc): # renvoie un tuple de priorités: score, sinon la plus petite valeur, sinon la polarité positive 
     return lambda l: (sc[l], -abs(l), l > 0)
 
 

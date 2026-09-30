@@ -23,11 +23,12 @@ def place_chats(n, rng):
         choix = list(range(n))
         rng.shuffle(choix)
         for c in choix:
-            if c not in colonnes and (i == 0 or abs(c - colonnes[-1]) >= 2):
+        # si colonne jamais utilisée et (soit c'est le premier chat soit on est bien pas collé en diag)
+            if c not in colonnes and (i == 0 or abs(c - colonnes[-1]) >= 2): # comme on choisit une colonne par ligne dans l'ordre, pour vérifier si la clause diag est ok il suffit de regarder la colonne choisie pour la ligne juste avant 
                 colonnes.append(c)
-                if essayer(i + 1):
+                if essayer(i + 1): # backtraking
                     return True
-                colonnes.pop()
+                colonnes.pop() # sinon on abandonne cette branche 
         return False
 
     return colonnes if essayer(0) else None
@@ -44,9 +45,9 @@ def faire_grossir(n, chats, rng):
         for i in range(n):
             for j in range(n):
                 if region[i][j] is None:
-                    for a, b in ((i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)):
-                        if 0 <= a < n and 0 <= b < n and region[a][b] is not None:
-                            candidats.append(((i, j), region[a][b]))
+                    for a, b in ((i - 1, j), (i + 1, j), (i, j - 1), (i, j + 1)): # pas le 8-voisinage pour garder la connexité spéciale là sans diag
+                        if 0 <= a < n and 0 <= b < n and region[a][b] is not None: # si une case 4-voisine est dans une région, on peut attribuer cette case libre à cette région
+                            candidats.append(((i, j), region[a][b])) 
         if not candidats:
             return region
         (i, j), k = rng.choice(candidats)
