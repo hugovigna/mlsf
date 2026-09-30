@@ -1,0 +1,245 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+\usetheme{Madrid}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{amsmath,amssymb,stmaryrd}
+\usepackage{tikz}
+\usepackage{fontawesome5}
+\usepackage{booktabs}
+\usepackage{listings}
+
+\lstset{basicstyle=\ttfamily\footnotesize, columns=fullflexible, keepspaces=true,
+        keywordstyle=\bfseries, language=Python}
+
+\setbeamertemplate{section in toc}[sections numbered]
+\title{Un solveur SAT pour Meowdoku}
+\subtitle{MLSF -- Projet, partie I}
+\author{Salomé Fonvielle \and Hugo Vigna}
+\date{Octobre 2026}
+
+% --- Grilles -------------------------------------------------------------
+\definecolor{regA}{HTML}{F4CCCC}
+\definecolor{regB}{HTML}{CFE2F3}
+\definecolor{regC}{HTML}{D9EAD3}
+\definecolor{regD}{HTML}{FFF2CC}
+\definecolor{regE}{HTML}{D9D2E9}
+\definecolor{regF}{HTML}{FCE5CD}
+
+% \grille[échelle]{lignes}{chats} : lignes = {{A,B,...},...}, chats = liste i/j (1-indexés), vide = aucun
+\newcommand{\grille}[3][0.5]{%
+  \begin{tikzpicture}[scale=#1]
+    \foreach \ligne [count=\i] in #2 {
+      \foreach \z [count=\j] in \ligne {
+        \fill[reg\z] (\j-1,-\i) rectangle ++(1,1);
+        \node[font=\tiny, text=black!50] at (\j-0.75,-\i+0.75) {\z};
+      }
+    }
+    \draw[black!25] (0,-6) grid (6,0);
+    \draw[thick] (0,-6) rectangle (6,0);
+    \foreach \i/\j in {#3} {
+      \if\relax\detokenize\expandafter{\i}\relax\else
+        \node at (\j-0.5,-\i+0.5) {\faCat};
+      \fi
+    }
+  \end{tikzpicture}}
+
+\newcommand{\sujet}{{A,B,C,B,B,D},{A,B,B,B,B,D},{A,A,B,D,D,D},{A,A,A,E,D,D},{A,A,A,A,D,D},{F,A,D,D,D,D}}
+\newcommand{\genere}{{B,A,A,A,C,C},{B,B,A,C,C,C},{B,B,C,C,C,C},{E,D,D,D,D,C},{E,E,D,F,F,C},{E,E,F,F,F,F}}
+
+\begin{document}
+
+\maketitle
+
+\begin{frame}{Plan}
+  \tableofcontents
+\end{frame}
+
+% =========================================================================
+\section{Modéliser Meowdoku en CNF}
+
+\begin{frame}{Le jeu et ce qui est demandé}
+  \begin{columns}[T]
+    \column{0.52\textwidth}
+    \begin{block}{Règles}
+      Grille $N\times N$, $N$ régions, $N$ chats
+      {\footnotesize (on se restreint à $N = M = K$)} :
+      \begin{itemize}
+        \item au plus un chat par ligne et par colonne ;
+        \item exactement un chat par région ;
+        \item aucun chat collé à un autre (8-voisinage).
+      \end{itemize}
+    \end{block}
+    \begin{block}{Demandé}
+      \begin{enumerate}
+        \item Grille $\to$ DIMACS (variables $x_{i,j}$) dont toute valuation témoin
+          est une solution.
+        \item Générateur de grilles à solution garantie.
+      \end{enumerate}
+      {\footnotesize Fichiers : \texttt{meowdoku.py}, \texttt{generator.py}}
+    \end{block}
+    \column{0.3\textwidth}
+    \centering
+    \grille[0.4]{\sujet}{} \\ {\footnotesize grille du sujet} \\[4pt]
+    \grille[0.4]{\sujet}{3/2,2/5,1/3,5/6,4/4,6/1} \\ {\footnotesize une solution}
+  \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{Variables}
+  \begin{columns}[T]
+    \column{0.6\textwidth}
+    \begin{block}{Une variable par case}
+      $x_{i,j}$ vraie ssi un chat est en $(i,j)$. DIMACS numérote à partir de 1 :
+      on cherche une bijection
+      \[ \varphi : \llbracket 1,N \rrbracket^2 \to \llbracket 1,N^2 \rrbracket \]
+      \[ \varphi(i,j) = (i-1)\,N + j \]
+      \[ \varphi^{-1}(k) = \big(\lfloor \tfrac{k-1}{N} \rfloor + 1,\; (k-1) \bmod N + 1\big) \]
+    \end{block}
+    \begin{block}{Dans le code (indices à partir de 0)}
+\begin{lstlisting}
+def var(i, j, n):        # = phi(i+1, j+1)
+    return i * n + j + 1
+\end{lstlisting}
+    \end{block}
+    \column{0.32\textwidth}
+    \centering
+    \begin{tikzpicture}[scale=0.55]
+      \foreach \i in {1,...,6}
+        \foreach \j in {1,...,6} {
+          \pgfmathtruncatemacro{\k}{(\i-1)*6+\j}
+          \node[font=\footnotesize] at (\j-0.5,-\i+0.5) {\k};
+        }
+      \draw[black!25] (0,-6) grid (6,0);
+      \draw[thick] (0,-6) rectangle (6,0);
+      \foreach \j in {1,...,6} \node[font=\tiny, text=black!50] at (\j-0.5,0.4) {$j{=}\j$};
+      \foreach \i in {1,...,6} \node[font=\tiny, text=black!50, anchor=east] at (0,-\i+0.5) {$i{=}\i$};
+    \end{tikzpicture} \\[2pt]
+    \footnotesize numérotation pour $N = 6$
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Clauses et correction}
+  \begin{enumerate}
+    \item \textbf{Conflit} : $\neg x_a \lor \neg x_b$ pour toute paire $\{a,b\}$ sur la même ligne, la même colonne,
+      dans la même région, ou adjacente (8-voisinage).
+    \item \textbf{Région} : $\bigvee_{a \in R_k} x_a$ pour toute région $R_k$.
+  \end{enumerate}
+  \medskip
+  \begin{center}\small
+  \begin{tabular}{ll}
+    \toprule
+    Règle du sujet & Clauses \\
+    \midrule
+    au plus un chat par ligne & conflit « même ligne » \\
+    au plus un chat par colonne & conflit « même colonne » \\
+    exactement un chat par région & région + conflit « même région » \\
+    aucun chat adjacent & conflit « adjacentes » \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  Donc \textbf{modèles de la CNF $=$ configurations valides}.
+  \medskip
+
+  {\footnotesize « Au plus un » par paires : $\frac{n(n-1)}{2}$ clauses, sans variable auxiliaire ;
+  poser $a$ rend chaque $\neg a \lor \neg b$ unitaire (propagation).
+  Avec $N = M = K$, « exactement un par ligne/colonne » en découle.\par}
+\end{frame}
+
+\begin{frame}{Exemple : la grille du sujet}
+  \begin{columns}[c]
+    \column{0.36\textwidth}
+    \centering
+    \begin{tikzpicture}[scale=0.62]
+      \foreach \ligne [count=\i] in \sujet {
+        \foreach \z [count=\j] in \ligne {
+          \fill[reg\z] (\j-1,-\i) rectangle ++(1,1);
+          \pgfmathtruncatemacro{\k}{(\i-1)*6+\j}
+          \node[font=\footnotesize] at (\j-0.5,-\i+0.5) {\k};
+        }
+      }
+      \draw[black!25] (0,-6) grid (6,0);
+      \draw[thick] (0,-6) rectangle (6,0);
+      \foreach \i/\j in {1/3,4/4,6/1} \draw[red, very thick] (\j-1,-\i) rectangle ++(1,1);
+    \end{tikzpicture} \\[2pt]
+    \footnotesize numéro de variable de chaque case
+    \column{0.6\textwidth}
+    {\small\begin{tabular}{@{}l@{\quad}l@{}}
+      \texttt{p cnf 36 309} & 36 variables, 309 clauses \\[4pt]
+      \texttt{-1 -2 0}      & pas de chat en 1 \emph{ou} pas en 2 (ligne) \\
+      \texttt{-1 -7 0}      & pas de chat en 1 \emph{ou} pas en 7 (colonne) \\
+      \texttt{...}          & 303 clauses de conflit \\[4pt]
+      \texttt{1 7 13 ... 32 0} & au moins un chat dans A \\
+      \texttt{3 0}          & C n'a qu'une case : chat en 3 \\
+      \texttt{22 0}         & E : chat en 22 \\
+      \texttt{31 0}         & F : chat en 31 \\
+      \texttt{...}          & 6 clauses de région \\
+    \end{tabular}}
+    \bigskip
+
+    Les cases \textcolor{red}{encadrées} sont des régions d'une seule case :
+    leur clause est unitaire, DPLL y place un chat sans décision.
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Générateur : solution plantée}
+  \begin{columns}[c]
+    \column{0.62\textwidth}
+    \begin{enumerate}
+      \item \textbf{Placer les chats} : une colonne par ligne, toutes distinctes,
+        avec un écart $\ge 2$ entre lignes consécutives (backtracking aléatoire).
+        Impossible pour $N = 2, 3$.
+      \item \textbf{Faire grossir les régions} : chaque chat est la graine d'une région.
+        Tant qu'il reste une case libre, on en tire une au hasard parmi celles qui touchent
+        une région (4-voisinage) et on l'y rattache.
+    \end{enumerate}
+    \medskip
+    Les régions obtenues sont connexes et contiennent chacune exactement un chat.
+    La configuration plantée est donc valide.
+    \column{0.3\textwidth}
+    \centering \grille{\genere}{1/3,2/1,3/6,4/4,5/2,6/5} \\
+    \footnotesize $N=6$, graine 1
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Validation}
+  \begin{itemize}
+    \item \texttt{is\_valid} vérifie les règles \textbf{directement}, sans passer par la CNF.
+    \item Grilles générées pour $N = 4..8$, 20 graines chacune : la solution plantée est valide,
+      elle satisfait la CNF, et les régions sont connexes.
+    \item \textbf{Équivalence exhaustive} pour $N = 4,5,6$ : pour chacune des $N!$ permutations,
+      « satisfait la CNF » $\Leftrightarrow$ « \texttt{is\_valid} ».
+    \item Aller-retour fichier : \texttt{write\_grid} puis \texttt{parse\_grid} redonne la grille.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Choix et limites}
+  \begin{itemize}
+    \item $N = M = K$ uniquement.
+    \item La solution n'est \textbf{pas unique} : 20 solutions pour la grille $N=6$, graine 1.
+      Le sujet n'exige qu'une solution au moins.
+    \item Encodage par paires : $O(|R|^2)$ clauses par région ; une grande région coûte cher.
+    \item Piste pour la Q6 : ajouter les clauses redondantes « au moins un par ligne/colonne »
+      pour obtenir plus de propagation unitaire.
+  \end{itemize}
+\end{frame}
+
+% =========================================================================
+\section{DIMACS et DPLL}
+\begin{frame}{À compléter}\end{frame}
+
+\section{Résoudre une grille}
+\begin{frame}{À compléter}\end{frame}
+
+\section{Heuristiques}
+\begin{frame}{À compléter}\end{frame}
+
+\section{Comparaison}
+\begin{frame}{À compléter}\end{frame}
+
+\section{Solveur optimisé}
+\begin{frame}{À compléter}\end{frame}
+
+\section{Usage de l'IA}
+\begin{frame}{À compléter}\end{frame}
+
+\end{document}
