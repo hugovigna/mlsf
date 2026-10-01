@@ -8,7 +8,7 @@ Projet MLSF : solveur SAT (DPLL) + jeu Meowdoku, partie I, en binôme, **rendu l
 - Q3 fait : `solve_grid.py` (sortie identique à la figure 2 du sujet sur `data/grids/sujet.txt`).
 - Q4 fait : `heuristics.py`, `creer(nom, F0, seed)` ; noms dans `NOMS` (H0, H1, H2s, H2d, H3d, H4d, H7s, H7d, H8). H8 = heuristique perso (plus courte clause positive).
 - Q5 fait : `bench_q5.py` (compteurs via `stats`), résultats `results/q5.csv`, `results/q5_tableaux.txt`, analyse `NOTES_Q5.md`.
-- **Q6 à faire** : `sat.py` imposé (`python sat.py inst.cnf [--mode dpll|optimized] [--output-model]`, sortie `s SATISFIABLE`/`s UNSATISFIABLE` + `v ... 0`, rien d'autre sur stdout ; Python 3.12, 4 CPU, 8 Gio, 60 s par instance, classement au nb d'instances résolues puis temps).
+- Q6 fait : `sat.py` (interface imposée, modes dpll/optimized, `--output-model` ; stdout réservé au résultat, erreur d'usage = code 2), `optimized.py` (CDCL : 1-UIP + minimisation, binaires en listes d'implications, 2 littéraux surveillés, VSIDS en tas, phase sauvegardée (vraie pour les clauses positives longues), Luby, réduction LBD), `tests/test_q6.py` (31 tests, couverture 100 %). Mesures : grilles n<=14 en ~73 ms dont 64 ms de démarrage Python ; grilles plantées n=50 < 0,7 s ; grilles à régions aléatoires UNSAT n>=25 parfois > 60 s, aussi dures pour MiniSat (principe des tiroirs, exponentiel par résolution). Pistes non faites : portefeuille sur 4 cœurs, raisonnement de comptage propre à Meowdoku (risqué : encodage des enseignants inconnu).
 - Rapport (à faire en dernier) : décisions de conception, résultats, analyses, usage de l'IA à mentionner.
 
 ## Résultats clés à connaître (détails : `NOTES_Q5.md`)

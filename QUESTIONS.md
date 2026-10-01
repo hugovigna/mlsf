@@ -47,10 +47,13 @@ Ordre de lecture conseillé : Q1 -> Q6. Les fichiers de test sont dans `tests/`.
 | Analyse | `NOTES_Q5.md` | |
 
 ## Q6 : solveur optimisé et interface imposée
-| Demande | Fichier | État |
+| Demande | Fichier | Fonction / commande |
 |---|---|---|
-| `python sat.py inst.cnf [--mode dpll\|optimized] [--output-model]` | `sat.py` | **à faire** |
-| Implémentation optimisée | `optimized.py` | **à faire** |
+| `python sat.py inst.cnf [--mode dpll\|optimized] [--output-model]` | `sat.py` | `main`, `analyser_arguments` |
+| Mode `dpll` (algorithme 2 de la Q2) | `dpll.py` | `dpll` |
+| Mode `optimized` (CDCL) | `optimized.py` | `resoudre` |
+| Lecture DIMACS commune aux deux modes (tolérante) | `optimized.py` | `lire` |
+| Tests : lecteur, cas limites, force brute, tiroirs, Meowdoku dans les coins, interface | `tests/test_q6.py` | 31 tests, couverture 100 % des lignes de `optimized.py` |
 
 ## Transversal
 | Fichier | Rôle |
