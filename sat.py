@@ -3,7 +3,7 @@
     python sat.py instance.cnf [--mode dpll|optimized] [--output-model]
 
 --mode dpll      : DPLL de la Q2 (dpll.py, algorithme 2, choix aléatoire H0).
---mode optimized : solveur CDCL (optimized.py). C'est le mode par défaut.
+--mode optimized : DPLL accéléré (optimized.py). Mode par défaut.
 --output-model   : si SAT, affiche aussi le modèle « v l1 l2 ... ln 0 ».
 
 Sortie standard réservée au résultat : « s SATISFIABLE » ou « s UNSATISFIABLE », puis la
