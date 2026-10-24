@@ -36,9 +36,9 @@ def encode(grille):
 
     # 1. Deux cases en conflit n'ont pas chacune un chat : (¬x_a ∨ ¬x_b)
     for k, a in enumerate(cases):
-        for b in cases[k + 1:]:
+        for b in cases[k + 1:]: # pour éviter de mettre deux fois la même clause 
             if en_conflit(grille, a, b):
-                clauses.append([-var(*a, n), -var(*b, n)])
+                clauses.append([-var(*a, n), -var(*b, n)]) # *a=i,j (déplie le couple)
 
     # 2. Chaque région a au moins un chat : (x_a ∨ x_b ∨ ...)
     for nom in dict.fromkeys(nom for ligne in grille for nom in ligne):   # ordre de 1re apparition

@@ -1,6 +1,6 @@
 # Notes Q4-Q5 : heuristiques et comparaison
 
-Reproduire : `python bench_q2.py gen && python bench_q5.py data/cnf/gen 10` (résultats : `results/q5.csv`, `results/q5_tableaux.txt`).
+Reproduire : `python bench_q2.py && python bench_q5.py data/cnf/gen 10` (résultats : `results/q5.csv`, `results/q5_tableaux.txt`).
 
 ## Protocole
 - 160 instances (`data/cnf/gen`), 9 variantes (H0, H1, H2s/d, H3d, H4d, H7s/d, H8), timeout 10 s CPU, **une exécution par couple (instance, heuristique)**, H0 avec la graine 0.

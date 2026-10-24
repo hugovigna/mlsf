@@ -11,29 +11,13 @@
 - `F[l<-1]` recrée un nouvel ensemble à chaque appel : coût O(|F|) par nœud, pas de structure incrémentale (à améliorer en Q6).
 
 ## 2.3 Validation
-Fichiers des enseignants : **pas encore disponibles** dans le dépôt. `python bench_q2.py run <dossier>` les traitera dès qu'ils seront placés dans `data/cnf/`.
+Instances publiques (`public-instances/`, 41 fichiers) : statut identique à `expected.json` pour les 41, et modèle vérifié clause par clause pour les SAT. Temps dans `results/q2_public_times.csv`.
+- Les fichiers ont révélé des clauses écrites sur plusieurs lignes : `parse_dimacs` accumule maintenant les littéraux jusqu'au `0`.
+- `tests/test_q2_2.py` : 300 formules aléatoires (≤ 8 variables) comparées à la force brute (statut et modèle) ; grilles Meowdoku décodées et validées par `is_valid`.
 
-En attendant :
-- `tests/test_q2_2.py` : 300 formules aléatoires (≤ 8 variables) comparées à la force brute (statut SAT/UNSAT, et modèle : cohérent et satisfait toutes les clauses) ; grilles Meowdoku décodées et validées par `is_valid`.
-- `bench_q2.py` sur 140 instances générées (`bench_q2.py gen`) : 3-SAT aléatoire au seuil (ratio 4,26), Meowdoku avec solution plantée (SAT), Meowdoku à graines aléatoires (SAT ou UNSAT). Vérifié à chaque instance : algorithmes 1 et 2 donnent le même statut, et le modèle de l'algorithme 2 satisfait la formule. Résultat : 0 erreur.
-- Limite : sur ces instances plus grandes, un UNSAT n'est pas vérifié indépendamment (la force brute n'est faite que sur les petits cas du test unitaire).
-
-## 2.4 Performances (temps en s, choix aléatoire, timeout 20 s, 1 exécution par instance)
-
-| famille | n | SAT | UNSAT | t1 moy | t2 moy | t2 max |
-|---|---|---|---|---|---|---|
-| 3sat_n20 | 10 | 7 | 3 | 0,001 | 0,001 | 0,002 |
-| 3sat_n50 | 10 | 8 | 2 | 0,041 | 0,040 | 0,165 |
-| meow-sat_n8 | 10 | 10 | 0 | 0,004 | 0,005 | 0,016 |
-| meow-sat_n12 | 10 | 10 | 0 | 0,630 | 0,023 | 0,058 |
-| meow-alea_n8 | 10 | 3 | 7 | 0,007 | 0,004 | 0,010 |
-| meow-alea_n10 | 10 | 4 | 6 | 0,187 | 0,152 | 0,550 |
-| meow-alea_n12 | 10 | 5 | 5 | 2,753 | 3,543 | 16,654 |
-
-Aucun timeout. (Tableau complet : `python bench_q2.py run data/cnf/gen`.)
-
-Observations :
-- Algorithmes 1 et 2 : même exploration, donc mêmes ordres de grandeur ; les écarts (ex. `meow-sat_n12`, 0,63 vs 0,023) viennent du tirage aléatoire différent entre les deux exécutions, pas de l'algorithme. Une seule exécution par instance : l'écart entre t1 et t2 n'est pas interprétable.
-- Forte variance due au choix aléatoire (`meow-alea_n12` : moyenne 3,5 s, max 16,7 s).
-- Les grilles UNSAT (graines aléatoires) coûtent nettement plus que les SAT à taille égale : pour prouver l'insatisfiabilité, tout l'arbre doit être exploré, alors qu'une grille SAT trouve une solution avant.
-- Le coût croît vite avec N sur Meowdoku (clauses en O(N^4) et arbre de recherche), ce qui motive les heuristiques (Q4) et des structures incrémentales (Q6).
+## 2.4 Performances (choix aléatoire, une exécution, sans timeout)
+- 28 instances `public-*` sur 30 en moins de 3 s (25 en moins d'1 s).
+- Plus dures : `public-12` (SAT) 65 s, `public-03` (UNSAT) 117,5 s.
+- Forte variance due au choix aléatoire : `public-06` > 120 s à un lancement, 0,16 s au suivant.
+- UNSAT en général plus coûteux que SAT : tout l'arbre doit être exploré.
+- `dpll` recrée la formule à chaque nœud (`simplifier`, O(|F|)) : motive les heuristiques (Q4) et les structures incrémentales (Q6).

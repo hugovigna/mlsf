@@ -28,14 +28,14 @@ def variables(F):
 def trouver_unitaire(F):
     for c in F:
         if len(c) == 1:
-            return next(iter(c))
+            return list(c)[0] # on prend l'élément de la clause
     return None
 
 
 def trouver_pur(F):
     lits = {l for c in F for l in c}
     for l in lits:
-        if -l not in lits:
+        if -l not in lits: # apparaît que sous une polarité
             return l
     return None
 
@@ -43,9 +43,9 @@ def trouver_pur(F):
 def dpll_sat(F, choix=choix_aleatoire):
     """Algorithme 1 : True si F est satisfiable."""
     if frozenset() in F:
-        return False
+        return False # clause vide donc pas sat
     if not F:
-        return True
+        return True # formule vide donc tout est satisfiable
     l = trouver_unitaire(F)
     if l is None:
         l = trouver_pur(F)
@@ -57,7 +57,7 @@ def dpll_sat(F, choix=choix_aleatoire):
 
 def dpll(F, choix=choix_aleatoire, stats=None):
     """Algorithme 2/3 : (True, valuation) si F est satisfiable, (False, None) sinon.
-    `stats` (Counter facultatif) compte : unitaires, purs, decisions, retours (2e branche exploree)."""
+    `stats` (Counter facultatif) compte : unitaires, purs, decisions, retours (autres branches explorees)."""
     if frozenset() in F:
         return False, None
     if not F:
@@ -72,7 +72,7 @@ def dpll(F, choix=choix_aleatoire, stats=None):
             stats["purs"] += 1
     if l is not None:
         s, v = dpll(simplifier(F, l), choix, stats)
-        return (True, v | {l}) if s else (False, None)
+        return (True, v | {l}) if s else (False, None) # v | {l} c'est l'union de la valuation avec l'affectation de l
     l = choix(F)
     if stats is not None:
         stats["decisions"] += 1

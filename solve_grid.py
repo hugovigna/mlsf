@@ -22,7 +22,7 @@ def resoudre(grille):
     sat, v = dpll.dpll(F)
     if not sat:
         return None
-    chats = [((x - 1) // n, (x - 1) % n) for x in v if x > 0]
+    chats = [((x - 1) // n, (x - 1) % n) for x in v if x > 0] # division euclidienne pr récupérer les coordonnées 
     assert meowdoku.is_valid(grille, chats), "solution invalide"
     return chats
 
@@ -39,8 +39,8 @@ def main():
         sys.exit("grille sans solution")
     n = len(grille)
     out = texte.rstrip("\n") + "\n"
-    for z in zones:
-        i, j = next((i, j) for i, j in chats if grille[i][j] == z)
+    for z in zones: # on récup les coordonnées du chat de chaque zone
+        i, j = next((i, j) for i, j in chats if grille[i][j] == z) # next parce que frozenset
         out += f"{z} {i + 1} {j + 1}\n"
     for i in range(n):
         out += " ".join("*" if (i, j) in chats else "." for j in range(n)) + "\n"

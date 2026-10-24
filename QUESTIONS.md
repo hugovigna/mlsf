@@ -19,7 +19,7 @@ Ordre de lecture conseillé : Q1 -> Q6. Les fichiers de test sont dans `tests/`.
 | 2.1 Lire un DIMACS en structure Python | `dimacs.py` | `parse_dimacs` |
 | 2.2 Algorithme 1 (SAT/UNSAT) | `dpll.py` | `dpll_sat` |
 | 2.2 Algorithme 2 (statut + valuation) | `dpll.py` | `dpll` |
-| 2.3 Valider sur des fichiers DIMACS | `bench_q2.py` | `python bench_q2.py gen` puis `run [dossier]` ; **fichiers des enseignants : manquants** |
+| 2.3 Valider sur des fichiers DIMACS | `public-instances/`, `results/q2_public_times.csv` | 41 instances, toutes conformes à `expected.json` |
 | 2.4 Commenter les performances | `NOTES_Q2.md` | |
 | Tests | `tests/test_q2.py`, `tests/test_q2_2.py` | |
 
@@ -42,15 +42,18 @@ Ordre de lecture conseillé : Q1 -> Q6. Les fichiers de test sont dans `tests/`.
 |---|---|---|
 | Compteurs (décisions, retours, unitaires, purs) | `dpll.py` | paramètre `stats` |
 | Temps CPU et part de l'heuristique, banc de comparaison | `bench_q5.py` | `python bench_q5.py [dossier] [timeout]` |
-| Instances (3-SAT, Meowdoku SAT/UNSAT) | `data/cnf/gen/` | générées par `bench_q2.py gen` |
+| Instances (3-SAT, Meowdoku SAT/UNSAT) | `data/cnf/gen/` | générées par `python bench_q2.py` |
 | Résultats bruts | `results/q5.csv`, `results/q5_tableaux.txt` | |
 | Analyse | `NOTES_Q5.md` | |
 
 ## Q6 : solveur optimisé et interface imposée
-| Demande | Fichier | État |
+| Demande | Fichier | Fonction / commande |
 |---|---|---|
-| `python sat.py inst.cnf [--mode dpll\|optimized] [--output-model]` | `sat.py` | **à faire** |
-| Implémentation optimisée | `optimized.py` | **à faire** |
+| `python sat.py inst.cnf [--mode dpll\|optimized] [--output-model]` | `sat.py` | `main`, `analyser_arguments` |
+| Mode `dpll` (algorithme 2 de la Q2) | `dpll.py` | `dpll` |
+| Mode `optimized` (DPLL + H8, 3 corrections de lenteur) | `optimized.py` | `resoudre` |
+| Lecture DIMACS commune aux deux modes (tolérante) | `optimized.py` | `lire` |
+| Tests : lecteur, cas limites, force brute, tiroirs, Meowdoku dans les coins, interface | `tests/test_q6.py` | 30 tests (suite complète : 49) |
 
 ## Transversal
 | Fichier | Rôle |

@@ -11,7 +11,9 @@ Sujet : `sujet_projet.pdf`. Python 3.12, aucune dépendance. Consignes de travai
 | `dpll.py` | DPLL algorithmes 1 et 2/3, avec compteurs facultatifs (Q2, Q5) |
 | `solve_grid.py` | grille -> CNF -> DPLL -> solution au format du sujet (Q3) |
 | `heuristics.py` | heuristiques H0, H1, H2s/d, H3d, H4d, H7s/d, H8 (Q4) |
-| `bench_q2.py`, `bench_q5.py` | génération d'instances, validation, comparaison des heuristiques |
+| `sat.py` | interface imposée de la compétition, modes `dpll` et `optimized` (Q6) |
+| `optimized.py` | DPLL de `dpll.py` accéléré : affectation avec annulation, 2 littéraux surveillés, H8 sur les clauses positives (Q6) |
+| `bench_q2.py`, `bench_q5.py` | génération d'instances, comparaison des heuristiques |
 | `demo_q1.py` | visualisation de la Q1 |
 | `NOTES_Q2.md`, `NOTES_Q5.md` | analyses (matière du rapport) |
 | `tests/` | tests unitaires |
@@ -22,7 +24,9 @@ python generator.py 8 data/grids/g8.txt 1          # grille 8x8 (graine 1)
 python meowdoku.py data/grids/g8.txt g8.cnf         # grille -> DIMACS
 python solve_grid.py data/grids/sujet.txt           # résout une grille
 python demo_q1.py 6 1                               # visualise grille, CNF, solutions
-python bench_q2.py gen && python bench_q5.py        # instances puis comparaison (results/q5.csv)
-python -m unittest discover -s tests -t .           # tests
+python bench_q2.py && python bench_q5.py        # instances puis comparaison (results/q5.csv)
+python sat.py inst.cnf --output-model               # solveur optimisé (défaut)
+python sat.py inst.cnf --mode dpll                  # DPLL de la Q2
+python -m unittest discover -s tests -t .           # tests (49)
 ```
-`sat.py` (interface imposée de la Q6) n'est pas encore écrit.
+`sat.py` n'écrit sur stdout que `s SATISFIABLE` / `s UNSATISFIABLE` et, avec `--output-model`, la ligne `v ... 0` ; une erreur d'usage renvoie le code 2 avec un message sur stderr.
