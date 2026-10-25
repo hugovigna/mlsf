@@ -1,7 +1,7 @@
-"""Solveur optimisé (Q6) : le DPLL de dpll.py, corrigé sur ses trois causes de lenteur.
+"""Solveur optimisé (Q6) : le DPLL de dpll.py, corrigé sur deux de ses causes de lenteur.
 
-Profil de dpll.py (heuristique H8) : 92 à 94 % du temps part dans trois causes (simplifier 60 %, unitaire/pur 17 %, H8 16 %) qui
-parcourent toute la formule F à chaque étape.
+Profil de dpll.py (heuristique H8) : `simplifier` prend environ 60 % du temps, `trouver_unitaire`
+et `trouver_pur` environ 17 %, H8 environ 16 %. Les trois parcourent toute la formule à chaque étape.
 
   1. `simplifier(F, l)` reconstruit un nouvel ensemble de clauses à chaque affectation,
      en O(|F|), alors qu'une affectation ne touche que les clauses contenant l ou -l.
@@ -9,21 +9,21 @@ parcourent toute la formule F à chaque étape.
         `trail` des littéraux affectés dans l'ordre ; revenir en arrière = défaire la fin
         de `trail` (coût = nombre de littéraux défaits).
 
-  2. `trouver_unitaire(F)` (et `trouver_pur`) cherchent en parcourant F.
-     -> Deux littéraux surveillés par clause (c[0] et c[1]) : tant que les deux ne sont
-        pas faux, la clause n'est ni unitaire ni fausse. Quand un littéral devient faux,
-        on ne regarde que les clauses qui le surveillent, et on lui cherche un
-        remplaçant non faux ; s'il n'y en a pas, la clause est unitaire (ou fausse).
-        Le littéral pur est abandonné : le test coûte O(|F|) et ne sert à rien sur
-        Meowdoku (aucun littéral pur, voir NOTES_Q5.md). Cela ne change pas la correction.
+  2. `trouver_unitaire(F)` cherche une clause unitaire en parcourant F.
+     -> Deux littéraux surveillés par clause (ses deux premiers, c[0] et c[1]). Tant que ces deux
+        littéraux ne sont pas faux, la clause n'est ni unitaire ni fausse. Quand un littéral
+        devient faux, on ne regarde que les clauses qui le surveillent : on lui cherche un
+        remplaçant non faux dans la clause ; s'il n'y en a pas, l'autre surveillé doit être
+        vrai (clause unitaire) ou bien la clause est fausse (conflit).
 
   3. L'heuristique H8 relit F à chaque décision.
      -> Les seules clauses qui l'intéressent sont les clauses entièrement positives de la
         formule de départ (sur Meowdoku : « au moins un chat dans la région »). On les
         met de côté une fois pour toutes ; une décision ne parcourt qu'elles.
 
-Le reste est identique à dpll.py : même recherche (décision, branche 1 puis branche 0,
-retour arrière chronologique), donc la même logique que `dpll` avec H8 (sauf le littéral pur, abandonné, et le repli quand il n'y a plus de clause positive).
+Le reste est identique à dpll.py : propagation des clauses unitaires, littéral pur (cherché par un
+parcours de la formule, seulement avant chaque décision), puis décision, branche 1 puis branche 0,
+retour arrière chronologique. H8 se replie sur H2 statique, plus simple que H7d et comparable sur les instances Meowdoku.
 
 Représentation : littéraux DIMACS signés (k = x_k, -k = ¬x_k). Les tableaux indexés par
 littéral ont 2n+1 cases : t[l] pour l > 0 et t[-l] pour l < 0 (les indices négatifs de
@@ -73,8 +73,9 @@ def resoudre(n, clauses):
     sys.setrecursionlimit(max(sys.getrecursionlimit(), n + 1000))   # profondeur = nb de décisions
 
     val = [0] * (2 * n + 1)            # par littéral : 1 vrai, -1 faux, 0 libre
-    watches = [[] for _ in range(2 * n + 1)]   # watches[l] : clauses dont l est surveillé
     occ = [0] * (2 * n + 1)            # nombre d'occurrences de chaque littéral
+    cl = []                            # clauses de taille >= 2 (sans doublons ni tautologies)
+    watches = [[] for _ in range(2 * n + 1)]   # watches[l] : clauses dont l est l'un des deux surveillés
     positives = []                     # clauses de départ entièrement positives (pour H8)
     trail = []                         # littéraux affectés, dans l'ordre
     tete = 0                           # trail[:tete] a déjà été propagé
@@ -87,14 +88,13 @@ def resoudre(n, clauses):
     def defaire(marque):
         """Défait les affectations jusqu'à ce que trail ait la longueur `marque`."""
         nonlocal tete
+        tete = marque                  # ce qui reste a déjà été entièrement propagé
         while len(trail) > marque:
             l = trail.pop()
             val[l] = 0
             val[-l] = 0
-        tete = marque                  # !!!!! ce qui reste a été entièrement propagé
 
     # ---------- chargement ----------
-    # Invariant : une clause de taille >= 2 est dans watches[c[0]] et watches[c[1]].
     for c in clauses:
         c = list(dict.fromkeys(c))     # copie sans doublons : (1 ∨ 1 ∨ 2) devient (1 ∨ 2)
         if any(-x in c for x in c):
@@ -102,12 +102,12 @@ def resoudre(n, clauses):
         if not c:
             return None                # clause vide : jamais satisfiable
         if len(c) == 1:
-            if val[c[0]] < 0:          # c[0] est déjà faux : au chargement seule une clause de taille 1 affecte,
-                                       # donc une clause (¬c[0]) est passée avant ; (x) et (¬x) se contredisent, UNSAT 
-                return None           
+            if val[c[0]] < 0:
+                return None            # (x) et (¬x) : contradiction
             if val[c[0]] == 0:
-                affecter(c[0])         # propagé plus tard, avec les décisions
+                affecter(c[0])         # sera propagé avec le reste
             continue
+        cl.append(c)
         watches[c[0]].append(c)
         watches[c[1]].append(c)
         for x in c:
@@ -127,43 +127,45 @@ def resoudre(n, clauses):
             faux = -trail[tete]        # littéral qui vient de devenir faux
             tete += 1
             ws = watches[faux]
-            i = j = 0                  # ws[:j] : clauses qui gardent `faux` surveillé
-            while i < len(ws):
-                c = ws[i]
-                i += 1
-                if c[0] == faux:       # on range `faux` en c[1] ; a = l'autre surveillé
-                    c[0] = c[1]
-                    c[1] = faux
-                a = c[0]
-                if val[a] > 0:         # clause déjà vraie : rien à faire
-                    ws[j] = c
-                    j += 1
+            watches[faux] = []         # on y remet les clauses qui gardent `faux` surveillé
+            for i, c in enumerate(ws):
+                if c[0] == faux:       # on range `faux` en c[1] ; c[0] est l'autre surveillé
+                    c[0], c[1] = c[1], c[0]
+                if val[c[0]] > 0:      # clause déjà vraie : on garde la surveillance
+                    watches[faux].append(c)
                     continue
                 for k in range(2, len(c)):          # remplaçant non faux pour `faux` ?
-                    x = c[k]
-                    if val[x] >= 0:
-                        c[1] = x
-                        c[k] = faux
-                        watches[x].append(c)        # x != faux, donc pas la liste ws
+                    if val[c[k]] >= 0:
+                        c[1], c[k] = c[k], c[1]
+                        watches[c[1]].append(c)     # la clause passe sur le nouveau littéral
                         break
-                else:                  # aucun remplaçant : tout est faux sauf peut-être a
-                    ws[j] = c
-                    j += 1
-                    if val[a] == 0:
-                        affecter(a)    # clause unitaire : a doit être vrai
-                    else:              # a faux aussi : conflit ; on garde le reste de ws
-                        ws[j:] = ws[i:]
+                else:                  # aucun remplaçant : tout est faux sauf peut-être c[0]
+                    watches[faux].append(c)
+                    if val[c[0]] < 0:              # c[0] faux aussi : conflit
+                        watches[faux].extend(ws[i + 1:])
                         return False
-            del ws[j:]
+                    if val[c[0]] == 0:
+                        affecter(c[0])             # clause unitaire : c[0] doit être vrai
         return True
+
+    def trouver_pur():
+        """Un littéral libre qui n'apparaît que sous une polarité dans les clauses non satisfaites."""
+        vus = set()
+        for c in cl:
+            if not any(val[x] > 0 for x in c):
+                vus.update(x for x in c if val[x] == 0)
+        for x in vus:
+            if -x not in vus:
+                return x
+        return None
 
     def choisir():
         """Littéral à rendre vrai, ou None si toutes les variables sont affectées.
         H8 : parmi les clauses positives non satisfaites, celle qui a le moins de
         littéraux libres ; dans cette clause, la variable la plus fréquente, valeur 1.
-        S'il n'y en a pas : première variable libre de `ordre`."""
+        S'il n'y en a pas : première variable libre de `ordre` (H2 statique)."""
         meilleure = None
-        k_min = n + 1
+        k_min = n + 1   # compteur pour savoir quelle clause a le - de littéraux libres, meilleure note laquelle c'est 
         for c in positives:
             libres = 0
             for x in c:
@@ -176,24 +178,32 @@ def resoudre(n, clauses):
                     k_min = libres
                     meilleure = c
         if meilleure is not None:
-            return max((x for x in meilleure if val[x] == 0), key=lambda x: (occ[x] + occ[-x], -x))
-        for l in ordre:
+            return max((x for x in meilleure if val[x] == 0), key=lambda x: (occ[x] + occ[-x], -x)) # dans la plus petite clause, quel littéral a le + d'occurences
+        for l in ordre: # si plus de clause positive, on fait H2
             if val[l] == 0:
                 return l
         return None
 
     def chercher():
-        if not propager():
-            return False
+        marque = len(trail)
+        while True:                    # propagation, puis littéraux purs
+            if not propager():
+                defaire(marque)
+                return False
+            l = trouver_pur()
+            if l is None:
+                break
+            affecter(l)
         l = choisir()
         if l is None:
-            return True                # tout est affecté sans conflit : toutes les clauses sont vraies
-        marque = len(trail)
+            return True                # tout est affecté sans conflit
+        marque2 = len(trail)
         for x in (l, -l):              # branche « l vrai » puis branche « l faux »
             affecter(x)
             if chercher():
                 return True
-            defaire(marque)
+            defaire(marque2)
+        defaire(marque)
         return False
 
     if not chercher():
