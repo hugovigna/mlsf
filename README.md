@@ -1,6 +1,6 @@
 # MLSF : solveur DPLL et Meowdoku (partie I)
 
-Sujet : `sujet_projet.pdf`. Python 3.12, aucune dépendance. Rapport : `RAPPORT.md` (version LaTeX : `rapport.tex`).
+Sujet : `sujet_projet.pdf`. Python 3.12, aucune dépendance. Rapport : `rapport.tex`.
 
 ## Fichiers
 | Fichier | Rôle |
@@ -12,7 +12,7 @@ Sujet : `sujet_projet.pdf`. Python 3.12, aucune dépendance. Rapport : `RAPPORT.
 | `solve_grid.py` | grille -> CNF -> DPLL -> solution au format du sujet (Q3) |
 | `heuristics.py` | heuristiques H0, H1, H2s/d, H3d, H4d, H7s/d, H8 (Q4) |
 | `sat.py` | interface imposée de la compétition, modes `dpll` et `optimized` (Q6) |
-| `optimized.py` | DPLL de `dpll.py` accéléré : affectation avec annulation, H8 sur les clauses positives (Q6) |
+| `optimized.py` | DPLL de `dpll.py` accéléré : affectation avec annulation, deux littéraux surveillés, H8 sur les clauses positives (Q6) |
 | `bench_q2.py` | génération des instances de `data/cnf/gen` |
 | `bench_q5.py` | comparaison des heuristiques (Q5) |
 | `bench_q6.py` | lance `sat.py` sur les instances publiques et les grilles générées (Q2, Q6) |

@@ -5,8 +5,11 @@
 \usepackage[french]{babel}
 \usepackage{amsmath,amssymb,stmaryrd}
 \usepackage{tikz}
+\usetikzlibrary{positioning,fit,backgrounds,calc}
+\tikzset{tuile/.style={draw=#1!60!black, fill=#1!8, rounded corners=6pt, very thick,
+                       text width=3.4cm, minimum height=2.4cm, align=center, inner sep=5pt}}
 \usepackage{fontawesome5}
-\usepackage{booktabs}
+\usepackage{booktabs,array,colortbl}
 \usepackage{listings}
 
 \lstset{basicstyle=\ttfamily\footnotesize, columns=fullflexible, keepspaces=true,
@@ -15,7 +18,7 @@
 \setbeamertemplate{section in toc}[sections numbered]
 \title{Un solveur SAT pour Meowdoku}
 \subtitle{MLSF -- Projet, partie I}
-\author{Salomé Fonvielle \and Hugo Vigna}
+\author{Hugo Vigna \and Salomé Fonvielle}
 \date{Octobre 2026}
 
 % --- Grilles -------------------------------------------------------------
@@ -39,7 +42,7 @@
     \draw[thick] (0,-6) rectangle (6,0);
     \foreach \i/\j in {#3} {
       \if\relax\detokenize\expandafter{\i}\relax\else
-        \node at (\j-0.5,-\i+0.5) {\faCat};
+        \node[font=\footnotesize] at (\j-0.5,-\i+0.5) {\faCat};
       \fi
     }
   \end{tikzpicture}}
@@ -55,29 +58,64 @@
   \tableofcontents
 \end{frame}
 
+\begin{frame}{Vue d'ensemble du projet}
+  \centering
+  \begin{tikzpicture}[
+      q/.style={draw, rounded corners, thick, align=center, font=\scriptsize,
+                text width=2.75cm, inner sep=3pt},
+      fl/.style={-latex, very thick, black!60},
+      lab/.style={font=\scriptsize\itshape, text=black!70},
+      groupe/.style={draw, rounded corners=8pt, very thick, inner sep=9pt},
+      titre/.style={font=\small\bfseries, fill=white, inner sep=2pt}]
+    % --- Bloc 1 : résoudre le jeu
+    \node[q, fill=regA, draw=red!60!black, text width=3.1cm] (q1) at (-5.2, 1.35) {\textbf{Q1 Modéliser}\\grille $\to$ CNF\\générateur de grilles};
+    \node[q, fill=regB, draw=blue!60!black, text width=3.1cm] (q2) at (-5.2,-1.35) {\textbf{Q2 Résoudre}\\lire un fichier DIMACS\\résoudre avec DPLL};
+    \node[q, fill=regC, draw=green!50!black] (q3) at (-1.6, 0)   {\textbf{Q3 Assembler}\\grille $\to$ CNF $\to$ DPLL $\to$ chats\\vérification \texttt{is\_valid}};
+    \draw[fl] (q1.east) -- node[lab, above right=-1pt, pos=0.45] {encodage} (q3.north west);
+    \draw[fl] (q2.east) -- node[lab, below right=-1pt, pos=0.45] {DPLL} (q3.south west);
+    \begin{scope}[on background layer]
+      \node[groupe, draw=blue!50!black, fill=blue!3, fit=(q1)(q2)(q3)] (g1) {};
+    \end{scope}
+    \node[titre, text=blue!50!black] at (g1.north) {Résoudre le jeu};
+
+    % --- Bloc 2 : optimiser la résolution
+    \node[q, fill=regD, draw=orange!70!black, text width=3.3cm] (q4) at (4.1, 1.75) {\textbf{Q4 Heuristiques}\\H0--H4, H7 ; H8 (nous)};
+    \node[q, fill=regE, draw=violet!70!black, text width=3.3cm] (q5) at (4.1, 0)    {\textbf{Q5 Comparer}\\décisions, retours, temps};
+    \node[q, fill=regF, draw=brown!70!black, text width=3.3cm]  (q6) at (4.1,-1.75) {\textbf{Q6 Optimiser}\\solveur rapide, \texttt{sat.py}};
+    \draw[fl] (q4) -- (q5);
+    \draw[fl] (q5) -- node[lab, right] {conclusions} (q6);
+    \begin{scope}[on background layer]
+      \node[groupe, draw=orange!60!black, fill=orange!3, fit=(q4)(q5)(q6)] (g2) {};
+    \end{scope}
+    \node[titre, text=orange!60!black] at (g2.north) {Optimiser la résolution};
+
+    % --- Lien entre les blocs
+    \draw[fl, draw=black!75] (g1.east) -- node[lab, above, align=center] {accélérer\\DPLL} (g2.west);
+  \end{tikzpicture}
+\end{frame}
+
 % =========================================================================
 \section{Modéliser Meowdoku en CNF}
 
-\begin{frame}{Le jeu et ce qui est demandé}
+\begin{frame}{Q1 -- Encodage : variables, clauses, correction}
   \begin{columns}[T]
-    \column{0.52\textwidth}
-    \begin{block}{Règles}
-      Grille $N\times N$, $N$ régions, $N$ chats
-      {\footnotesize (on se restreint à $N = M = K$)} :
-      \begin{itemize}
-        \item au plus un chat par ligne et par colonne ;
-        \item exactement un chat par région ;
-        \item aucun chat collé à un autre (8-voisinage).
-      \end{itemize}
-    \end{block}
-    \begin{block}{Demandé}
-      \begin{enumerate}
-        \item Grille $\to$ DIMACS (variables $x_{i,j}$) dont toute valuation témoin
-          est une solution.
-        \item Générateur de grilles à solution garantie.
-      \end{enumerate}
-      {\footnotesize Fichiers : \texttt{meowdoku.py}, \texttt{generator.py}}
-    \end{block}
+    \column{0.64\textwidth}
+    {\small Grille $N\times N$, $N$ régions ($N = M = K$) : un chat par ligne, colonne et région, aucun chat collé (8-voisinage).\par}
+    \medskip
+    \textbf{Variables.} $x_{i,j}$ vraie ssi chat en $(i,j)$ ; numéro DIMACS $\varphi(i,j) = (i-1)N + j \in \llbracket 1,N^2 \rrbracket$.
+    \medskip
+
+    \textbf{Clauses.}
+    \begin{itemize}
+      \item \textbf{Conflit} $\neg x_a \lor \neg x_b$ : $a,b$ sur la même ligne, colonne, région, ou adjacentes $\Rightarrow$ \emph{au plus un}.
+      \item \textbf{Région} $\bigvee_{a \in R_k} x_a$ $\Rightarrow$ \emph{au moins un} par région.
+    \end{itemize}
+    \medskip
+    \textbf{Correction.} Exactement un chat par région, donc $N$ chats ; au plus un par ligne $\Rightarrow$ exactement un (tiroirs), idem colonnes.
+    Donc \textbf{modèles de la CNF $=$ solutions du jeu}.
+    \medskip
+
+    {\footnotesize Coût : $O(n^4)$ paires testées, $O(n^3)$ clauses en pratique (309 pour la grille du sujet). \texttt{meowdoku.py}\par}
     \column{0.3\textwidth}
     \centering
     \grille[0.4]{\sujet}{} \\ {\footnotesize grille du sujet} \\[4pt]
@@ -85,161 +123,349 @@
   \end{columns}
 \end{frame}
 
-\begin{frame}[fragile]{Variables}
-  \begin{columns}[T]
-    \column{0.6\textwidth}
-    \begin{block}{Une variable par case}
-      $x_{i,j}$ vraie ssi un chat est en $(i,j)$. DIMACS numérote à partir de 1 :
-      on cherche une bijection
-      \[ \varphi : \llbracket 1,N \rrbracket^2 \to \llbracket 1,N^2 \rrbracket \]
-      \[ \varphi(i,j) = (i-1)\,N + j \]
-      \[ \varphi^{-1}(k) = \big(\lfloor \tfrac{k-1}{N} \rfloor + 1,\; (k-1) \bmod N + 1\big) \]
-    \end{block}
-    \begin{block}{Dans le code (indices à partir de 0)}
-\begin{lstlisting}
-def var(i, j, n):        # = phi(i+1, j+1)
-    return i * n + j + 1
-\end{lstlisting}
-    \end{block}
-    \column{0.32\textwidth}
-    \centering
-    \begin{tikzpicture}[scale=0.55]
-      \foreach \i in {1,...,6}
-        \foreach \j in {1,...,6} {
-          \pgfmathtruncatemacro{\k}{(\i-1)*6+\j}
-          \node[font=\footnotesize] at (\j-0.5,-\i+0.5) {\k};
-        }
-      \draw[black!25] (0,-6) grid (6,0);
-      \draw[thick] (0,-6) rectangle (6,0);
-      \foreach \j in {1,...,6} \node[font=\tiny, text=black!50] at (\j-0.5,0.4) {$j{=}\j$};
-      \foreach \i in {1,...,6} \node[font=\tiny, text=black!50, anchor=east] at (0,-\i+0.5) {$i{=}\i$};
-    \end{tikzpicture} \\[2pt]
-    \footnotesize numérotation pour $N = 6$
-  \end{columns}
-\end{frame}
-
-\begin{frame}{Clauses et correction}
-  \begin{enumerate}
-    \item \textbf{Conflit} : $\neg x_a \lor \neg x_b$ pour toute paire $\{a,b\}$ sur la même ligne, la même colonne,
-      dans la même région, ou adjacente (8-voisinage).
-    \item \textbf{Région} : $\bigvee_{a \in R_k} x_a$ pour toute région $R_k$.
-  \end{enumerate}
-  \medskip
-  \begin{center}\small
-  \begin{tabular}{ll}
-    \toprule
-    Règle du sujet & Clauses \\
-    \midrule
-    au plus un chat par ligne & conflit « même ligne » \\
-    au plus un chat par colonne & conflit « même colonne » \\
-    exactement un chat par région & région + conflit « même région » \\
-    aucun chat adjacent & conflit « adjacentes » \\
-    \bottomrule
-  \end{tabular}
-  \end{center}
-  Donc \textbf{modèles de la CNF $=$ configurations valides}.
-  \medskip
-
-  {\footnotesize « Au plus un » par paires : $\frac{n(n-1)}{2}$ clauses, sans variable auxiliaire ;
-  poser $a$ rend chaque $\neg a \lor \neg b$ unitaire (propagation).
-  Avec $N = M = K$, « exactement un par ligne/colonne » en découle.\par}
-\end{frame}
-
-\begin{frame}{Exemple : la grille du sujet}
+\begin{frame}{Q1 -- Générateur et validation}
   \begin{columns}[c]
-    \column{0.36\textwidth}
-    \centering
-    \begin{tikzpicture}[scale=0.62]
-      \foreach \ligne [count=\i] in \sujet {
-        \foreach \z [count=\j] in \ligne {
-          \fill[reg\z] (\j-1,-\i) rectangle ++(1,1);
-          \pgfmathtruncatemacro{\k}{(\i-1)*6+\j}
-          \node[font=\footnotesize] at (\j-0.5,-\i+0.5) {\k};
-        }
-      }
-      \draw[black!25] (0,-6) grid (6,0);
-      \draw[thick] (0,-6) rectangle (6,0);
-      \foreach \i/\j in {1/3,4/4,6/1} \draw[red, very thick] (\j-1,-\i) rectangle ++(1,1);
-    \end{tikzpicture} \\[2pt]
-    \footnotesize numéro de variable de chaque case
-    \column{0.6\textwidth}
-    {\small\begin{tabular}{@{}l@{\quad}l@{}}
-      \texttt{p cnf 36 309} & 36 variables, 309 clauses \\[4pt]
-      \texttt{-1 -2 0}      & pas de chat en 1 \emph{ou} pas en 2 (ligne) \\
-      \texttt{-1 -7 0}      & pas de chat en 1 \emph{ou} pas en 7 (colonne) \\
-      \texttt{...}          & 303 clauses de conflit \\[4pt]
-      \texttt{1 7 13 ... 32 0} & au moins un chat dans A \\
-      \texttt{3 0}          & C n'a qu'une case : chat en 3 \\
-      \texttt{22 0}         & E : chat en 22 \\
-      \texttt{31 0}         & F : chat en 31 \\
-      \texttt{...}          & 6 clauses de région \\
-    \end{tabular}}
-    \bigskip
-
-    Les cases \textcolor{red}{encadrées} sont des régions d'une seule case :
-    leur clause est unitaire, DPLL y place un chat sans décision.
-  \end{columns}
-\end{frame}
-
-\begin{frame}{Générateur : solution plantée}
-  \begin{columns}[c]
-    \column{0.62\textwidth}
+    \column{0.64\textwidth}
+    \textbf{Solution plantée} (\texttt{generator.py}) :
     \begin{enumerate}
-      \item \textbf{Placer les chats} : une colonne par ligne, toutes distinctes,
-        avec un écart $\ge 2$ entre lignes consécutives (backtracking aléatoire).
-        Impossible pour $N = 2, 3$.
-      \item \textbf{Faire grossir les régions} : chaque chat est la graine d'une région.
-        Tant qu'il reste une case libre, on en tire une au hasard parmi celles qui touchent
-        une région (4-voisinage) et on l'y rattache.
+      \item placer $N$ chats valides (backtracking aléatoire ; impossible pour $N = 2,3$) ;
+      \item chaque chat est la graine d'une région ; on rattache au hasard une case libre voisine (4-voisinage) jusqu'à remplir la grille.
     \end{enumerate}
+    Chaque région contient exactement un chat : la grille a au moins une solution (pas forcément unique).
     \medskip
-    Les régions obtenues sont connexes et contiennent chacune exactement un chat.
-    La configuration plantée est donc valide.
+
+    \textbf{Validation.} \texttt{is\_valid} vérifie chaque solution directement avec les règles du jeu, sans passer par la CNF.
     \column{0.3\textwidth}
     \centering \grille{\genere}{1/3,2/1,3/6,4/4,5/2,6/5} \\
     \footnotesize $N=6$, graine 1
   \end{columns}
 \end{frame}
 
-\begin{frame}{Validation}
-  \begin{itemize}
-    \item \texttt{is\_valid} vérifie les règles \textbf{directement}, sans passer par la CNF.
-    \item Grilles générées pour $N = 4..8$, 20 graines chacune : la solution plantée est valide,
-      elle satisfait la CNF, et les régions sont connexes.
-    \item \textbf{Équivalence exhaustive} pour $N = 4,5,6$ : pour chacune des $N!$ permutations,
-      « satisfait la CNF » $\Leftrightarrow$ « \texttt{is\_valid} ».
-    \item Aller-retour fichier : \texttt{write\_grid} puis \texttt{parse\_grid} redonne la grille.
-  \end{itemize}
-\end{frame}
-
-\begin{frame}{Choix et limites}
-  \begin{itemize}
-    \item $N = M = K$ uniquement.
-    \item La solution n'est \textbf{pas unique} : 20 solutions pour la grille $N=6$, graine 1.
-      Le sujet n'exige qu'une solution au moins.
-    \item Encodage par paires : $O(|R|^2)$ clauses par région ; une grande région coûte cher.
-    \item Piste pour la Q6 : ajouter les clauses redondantes « au moins un par ligne/colonne »
-      pour obtenir plus de propagation unitaire.
-  \end{itemize}
-\end{frame}
-
 % =========================================================================
 \section{DIMACS et DPLL}
-\begin{frame}{À compléter}\end{frame}
+
+\begin{frame}[fragile]{Q2 -- Lecture DIMACS et DPLL : objets et opérations}
+  \begin{columns}[T]
+    \column{0.44\textwidth}
+    \begin{alertblock}{Objets}
+      \small
+      \begin{tabular}{@{}ll@{}}
+        littéral & entier : $k = x_k$, $-k = \neg x_k$ \\
+        clause & \texttt{frozenset} de littéraux \\
+        formule & \texttt{set} de clauses \\
+        valuation & \texttt{set} des littéraux vrais \\
+      \end{tabular}
+    \end{alertblock}
+    \textbf{Lecture} (\texttt{dimacs.py}) :\par\smallskip
+    \begin{minipage}[c]{0.27\linewidth}
+\begin{lstlisting}[language={},aboveskip=0pt,belowskip=0pt]
+p cnf 3 3
+-1 2 0
+-1 -2 3 0
+1 0
+\end{lstlisting}
+    \end{minipage}%
+    $\rightarrow$\hspace{2pt}%
+    \begin{minipage}[c]{0.62\linewidth}
+\begin{lstlisting}[aboveskip=0pt,belowskip=0pt,basicstyle=\ttfamily\scriptsize]
+{frozenset({-1, 2}),
+ frozenset({-1, -2, 3}),
+ frozenset({1})}
+\end{lstlisting}
+    \end{minipage}
+    \medskip
+
+    {\footnotesize $\Rightarrow$ \textbf{Conséquence} : les doublons sont éliminés.\par
+    Une clause se termine au \texttt{0}, pas en fin de ligne.\par}
+
+    \column{0.53\textwidth}
+    \begin{block}{Opérations (\texttt{dpll.py})}
+      \small\renewcommand{\arraystretch}{1.15}
+      \begin{tabular}{@{}>{\bfseries}l>{\raggedright\arraybackslash}p{0.66\linewidth}@{}}
+        \multicolumn{2}{@{}l}{\cellcolor{blue!12}\textit{Tester}} \\
+        arrêt & $\square \in F \Rightarrow$ UNSAT ;\; $F = \emptyset \Rightarrow$ SAT \\
+        \rowcolor{black!5} unitaire & clause de taille 1 \\
+        pur & $l$ présent, $-l$ absent \\
+        \multicolumn{2}{@{}l}{\cellcolor{blue!12}\textit{Transformer}} \\
+        $F[l \leftarrow 1]$ & retirer les clauses $\ni l$, retirer $-l$ des autres $\to$ \emph{nouvelle} formule \\
+        \rowcolor{black!5} décision & $l = $ \texttt{choix(F)} (heuristique $\to$ Q4) \\
+        retour & reprendre l'ancienne formule \\
+      \end{tabular}
+    \end{block}
+    {\footnotesize \texttt{dpll\_sat} : statut ; \texttt{dpll} : statut $+$ valuation.\par}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Q2 -- Validation et performances}
+  \textbf{Validation} sur les 41 instances publiques (11 cas limites $+$ 30 SATLIB, 42 à 1\,363 variables) :
+  sans limite de temps, statut identique à \texttt{expected.json} pour les 41, et chaque modèle satisfait toutes les clauses.
+  Comparaison à une force brute sur 300 formules aléatoires ($\le 8$ variables) : même statut.
+  \bigskip
+
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+    \textbf{Performances} {\footnotesize (\texttt{-{}-mode dpll}, choix aléatoire, 60~s max)}
+    \smallskip
+
+    {\small\begin{tabular}{@{}lr@{}}
+      \toprule
+      Instances \texttt{public-*} & 30 \\
+      \midrule
+      résolues en $< 1$~s & 22 \\
+      résolues en $< 3$~s & 26 \\
+      \texttt{public-18}, \texttt{public-27} & 3,2~s ; 41,5~s \\
+      \texttt{public-03} (UNSAT), \texttt{public-06} & $> 60$~s \\
+      \bottomrule
+    \end{tabular}}
+    \column{0.48\textwidth}
+    \textbf{Analyse}
+    \begin{itemize}\small
+      \item Forte variance due au hasard : \texttt{public-06} $> 60$~s ici, 0,16~s lors d'un autre lancement.
+      \item UNSAT plus coûteux : il faut explorer tout l'arbre.
+      \item \texttt{simplifier} recopie la formule à chaque appel.
+    \end{itemize}
+    {\footnotesize $\Rightarrow$ motive les heuristiques (Q4) et l'optimisation (Q6).\par}
+  \end{columns}
+\end{frame}
 
 \section{Résoudre une grille}
-\begin{frame}{À compléter}\end{frame}
+
+\begin{frame}[fragile]{Q3 -- Résoudre une grille (\texttt{solve\_grid.py})}
+  \begin{columns}[T]
+    \column{0.5\textwidth}
+    \begin{tikzpicture}[
+        etape/.style={draw, rounded corners, fill=blue!8, minimum width=3.4cm,
+                      align=center, font=\small, inner sep=3pt},
+        fl/.style={-latex, thick},
+        lab/.style={font=\scriptsize, text=black!70, anchor=west, xshift=4pt}]
+      \node[etape] (g) {grille $N\times N$};
+      \node[etape, below=0.5cm of g] (f) {formule CNF};
+      \node[etape, below=0.5cm of f] (v) {valuation témoin};
+      \node[etape, below=0.5cm of v] (c) {position des chats};
+      \node[etape, below=0.5cm of c, fill=green!12] (o) {fichier solution};
+      \draw[fl] (g) -- node[lab] {\texttt{encode} (Q1) $\to$ DIMACS $\to$ lecture (Q2)} (f);
+      \draw[fl] (f) -- node[lab] {\texttt{dpll} (Q2)} (v);
+      \draw[fl] (v) -- node[lab] {décodage des variables vraies} (c);
+      \draw[fl] (c) -- node[lab] {\texttt{is\_valid}, puis écriture} (o);
+    \end{tikzpicture}
+
+    \column{0.46\textwidth}
+    \textbf{Décodage} (indices depuis 0) : variable $k$ vraie $\Rightarrow$ chat en
+    \[ \big(\lfloor \tfrac{k-1}{N} \rfloor,\ (k-1) \bmod N\big) \]
+    \textbf{Grille du sujet} : sortie identique à la figure 2.
+    \smallskip
+
+    \begin{minipage}[c]{0.3\linewidth}
+{\scriptsize\begin{verbatim}
+A 3 2
+B 2 5
+C 1 3
+D 5 6
+E 4 4
+F 6 1
+\end{verbatim}}
+    \end{minipage}%
+    \begin{minipage}[c]{0.68\linewidth}
+      \centering\grille[0.4]{\sujet}{3/2,2/5,1/3,5/6,4/4,6/1}
+    \end{minipage}
+    \medskip
+
+    {\footnotesize Si \texttt{is\_valid} refuse la solution, le programme s'arrête au lieu d'écrire un résultat faux.\par}
+  \end{columns}
+\end{frame}
 
 \section{Heuristiques}
-\begin{frame}{À compléter}\end{frame}
+
+\begin{frame}{Q4 -- Heuristiques implémentées (\texttt{heuristics.py})}
+  \begin{center}\small
+  \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{0.56\textwidth}>{\raggedright\arraybackslash}p{0.27\textwidth}@{}}
+    \toprule
+    & Critère de choix & Propriétés \\
+    \midrule
+    H0 & variable et valeur tirées au hasard & \\
+    H1 & variable libre de plus petit numéro, mise à vrai & \\
+    H2s, H2d & variable la plus fréquente & H2d dynamique \\
+    H3d & littéral le plus fréquent & littéral, dynamique \\
+    H4d & variable la plus fréquente dans les clauses minimales & taille des clauses, dynamique \\
+    H7s, H7d & littéral de plus grand poids $\sum 2^{-|C|}$ & littéral, taille, H7d dynamique \\
+    \textbf{H8} & \textbf{plus courte clause positive}, une variable mise à vrai & taille, dynamique (nous) \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  {\footnotesize Contraintes du sujet respectées : une heuristique sur un littéral, une sur la taille des clauses, une dynamique.\par}
+  \smallskip
+
+  \begin{columns}[T]
+    \column{0.5\textwidth}
+    \textbf{Statique} : score calculé une fois sur la formule initiale $F_0$.\par
+    \textbf{Dynamique} : score recalculé sur $F$ à chaque décision.
+    \column{0.46\textwidth}
+    \textbf{Vérification} : même statut que l'algorithme 2 sur les instances de la Q2, modèles valides.
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Q4 -- H8 : une heuristique pour Meowdoku}
+  \begin{columns}[T]
+    \column{0.55\textwidth}
+    \begin{alertblock}{Observation}
+      \small Dans notre encodage, les seules clauses \textbf{entièrement positives} sont les clauses de région « au moins un chat ».
+    \end{alertblock}
+    \textbf{H8} :
+    \begin{enumerate}\small
+      \item prendre la plus courte clause positive : la région qui a \textbf{le moins de cases possibles} ;
+      \item y choisir la variable la plus fréquente ;
+      \item la mettre à \textbf{1} : placer un chat ;
+      \item plus de clause positive $\Rightarrow$ H7d.
+    \end{enumerate}
+    \column{0.41\textwidth}
+    \textbf{Pourquoi ça marche}
+    \begin{itemize}\small
+      \item Un chat posé rend unitaires tous ses conflits $\neg x_a \lor \neg x_b$ : sa ligne, sa colonne, sa région et ses voisines tombent à 0 par propagation.
+      \item Les autres heuristiques mettent les cases à \textbf{0} (plus fréquentes en négatif) : une seule case éliminée.
+      \item Région la plus contrainte d'abord : on se trompe moins, et on le voit plus vite.
+    \end{itemize}
+    \smallskip
+    {\footnotesize \textbf{Limite} : dépend de l'encodage, pas générique. Résultats $\to$ Q5.\par}
+  \end{columns}
+\end{frame}
 
 \section{Comparaison}
-\begin{frame}{À compléter}\end{frame}
+
+\begin{frame}{Q5 -- Comparaison des heuristiques : protocole et résultats}
+  \relax{\small \textbf{Protocole} (\texttt{bench\_q5.py}) : compteurs ajoutés à DPLL (décisions, retours, unitaires, purs, temps CPU, part de l'heuristique) ;
+  9 variantes sur 160 instances : 40 3-SAT aléatoires, 60 grilles plantées (SAT), 60 grilles à régions aléatoires (27 SAT, 33 UNSAT). Timeout 10~s.\par}
+  \medskip
+
+  \begin{center}\small
+  \begin{tabular}{@{}l r | r r | r r@{}}
+    \toprule
+     & 3-SAT & \multicolumn{2}{c|}{Grilles plantées (60)} & \multicolumn{2}{c}{Grilles UNSAT (33)} \\
+     & décisions & décisions & CPU (s) & résolues & CPU (s) \\
+    \midrule
+    H0 (hasard) & 115 & 849 & 0,25 & 26 & 4,51 \\
+    H1          & 120 & 491 & 0,24 & 30 & 2,24 \\
+    H2s / H7s   & 22 / 26 & 739 & 0,47 & 25 & 5,10 \\
+    H2d, H3d, H7d & 18--24 & 204 & 0,06--0,08 & 25--26 & 4,6--5,0 \\
+    H4d         & \textbf{12} & 169 & 0,06 & 27 & 4,26 \\
+    \rowcolor{green!10} \textbf{H8} & 17 & \textbf{9} & \textbf{0,02} & \textbf{33} & \textbf{0,11} \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  {\footnotesize Décisions : moyenne sur les instances résolues. Un timeout compte 20~s de CPU.\par}
+\end{frame}
+
+\begin{frame}{Q5 -- Comparaison des heuristiques : analyse}
+  \begin{columns}[T]
+    \column{0.5\textwidth}
+    \begin{block}{Une heuristique améliore-t-elle DPLL ?}
+      \small Oui, mais \textbf{ça dépend du problème}.
+      \begin{itemize}
+        \item 3-SAT : les dynamiques font 5 à 10 fois moins de décisions que le hasard ; H4d est la meilleure.
+        \item Meowdoku : H2d, H3d, H4d, H7d mettent les cases à \textbf{0} dans 100~\% des décisions (variables bien plus souvent négatives) : presque aucune propagation.
+        \item H8 met une case à \textbf{1} : 9 décisions au lieu de 169, seule à résoudre les 33 UNSAT.
+      \end{itemize}
+    \end{block}
+    \column{0.46\textwidth}
+    \begin{block}{Le dynamique vaut-il son coût ?}
+      \small Oui sur Meowdoku : l'heuristique prend 45 à 54~\% du CPU (25~\% en statique), mais sur les grilles plantées H2s fait 739 décisions et H2d 204.
+    \end{block}
+    \begin{block}{Conformes à nos attentes ?}
+      \small Sur 3-SAT oui. Sur Meowdoku non : H2d, H3d, H7d font même pire que le hasard sur les petites grilles ($n=10$ : 88 décisions contre 17).
+    \end{block}
+    {\footnotesize \textbf{Limites} : une exécution par cas, peu d'instances par taille : des tendances.\par}
+  \end{columns}
+\end{frame}
 
 \section{Solveur optimisé}
-\begin{frame}{À compléter}\end{frame}
+
+\begin{frame}{Q6 -- Solveur optimisé : deux étapes}
+  \centering
+  \begin{tikzpicture}[etape/.style={rounded corners, thick, minimum width=6.6cm, minimum height=0.8cm, font=\small, inner sep=4pt}]
+    \node[etape, draw=black!40, fill=black!4, text=black!60] (e1) at (-3.75,0)
+      {\textbf{Étape 1} (Q4--Q5) : moins de décisions (H8)};
+    \node[etape, draw=green!45!black, fill=green!10, very thick] (e2) at (3.75,0)
+      {\textbf{Étape 2} (Q6) : des décisions moins chères};
+    \draw[-latex, very thick, black!50] (e1) -- (e2);
+  \end{tikzpicture}
+  \medskip
+
+  \begin{tikzpicture}[
+      pb/.style={draw=red!60!black, fill=red!8, rounded corners, thick, text width=3.5cm,
+                 minimum height=1.1cm, align=left, font=\small, inner sep=4pt},
+      sol/.style={draw=green!45!black, fill=green!8, rounded corners, thick, text width=7.9cm,
+                  minimum height=1.15cm, align=left, font=\footnotesize, inner sep=4pt,
+                  execute at begin node={\hyphenpenalty=10000}},
+      pct/.style={font=\bfseries\large, text=red!60!black},
+      fl/.style={-latex, very thick, black!50}]
+    \node[font=\small\bfseries, text=red!60!black]   at (-3.2, 0.95) {Lenteur : on relit \emph{toute} la formule};
+    \node[font=\small\bfseries, text=green!45!black] at ( 3.75, 0.95) {Correction (\texttt{optimized.py})};
+
+    \node[pb]  (p1) at (-3.2, 0)    {\texttt{simplifier} \textbf{copie} la formule};
+    \node[sol] (s1) at ( 3.75, 0)    {\textbf{Ne plus recopier.} On garde la formule, on note la valeur de chaque variable (vrai, faux, libre). Retour arrière : effacer les dernières valeurs.};
+    \node[pb]  (p2) at (-3.2,-1.4) {\texttt{trouver\_unitaire} \textbf{relit} toutes les clauses};
+    \node[sol] (s2) at ( 3.75,-1.4) {\textbf{Ne regarder que les clauses touchées.} Chaque clause surveille 2 littéraux : on ne vérifie que celles qui surveillaient le littéral devenu faux.};
+    \node[pb]  (p3) at (-3.2,-2.8)  {H8 \textbf{recherche} les clauses positives};
+    \node[sol] (s3) at ( 3.75,-2.8)  {\textbf{Calculer une seule fois.} La liste des clauses positives est faite au début : elle ne change jamais.};
+
+    \node[pct, left=3pt of p1] {40\,\%};
+    \node[pct, left=3pt of p2] {30\,\%};
+    \node[pct, left=3pt of p3] {20\,\%};
+    \foreach \i in {1,2,3} \draw[fl] (p\i) -- (s\i);
+  \end{tikzpicture}
+
+  \raggedright
+  {\footnotesize \% : part du temps total. La recherche ne change pas. Dans le code : \texttt{val}, \texttt{trail}, \texttt{watch}.\par}
+\end{frame}
+
+\begin{frame}{Q6 -- Solveur optimisé : résultats}
+  \centering
+  \begin{tikzpicture}
+    \node[tuile=gray] (t1) at (-4.5,0) {{\small \textbf{Étape 1} : heuristique}\\[3pt]
+      {\Large\bfseries 849 $\to$ 9}\\[3pt] {\footnotesize décisions (H0 $\to$ H8)}};
+    \node[tuile=green] (t2) at (0,0) {{\small \textbf{Étape 2} : structures}\\[3pt]
+      {\Large\bfseries $\times$\,2 à 2,5}\\[3pt] {\footnotesize à heuristique égale (H8)}};
+    \node[tuile=blue] (t3) at (4.5,0) {{\small \textbf{Les deux}}\\[3pt]
+      {\Large\bfseries 355\,s $\to$ 1,4\,s}\\[3pt] {\footnotesize grilles aléatoires $n=14$}};
+    \node at ($(t1.east)!0.5!(t2.west)$) {\Large$+$};
+    \node at ($(t2.east)!0.5!(t3.west)$) {\Large$=$};
+  \end{tikzpicture}
+  \medskip
+
+  \raggedright
+  \begin{columns}[T]
+    \column{0.47\textwidth}
+    \begin{exampleblock}{Ce qui marche}
+      \small Les 120 grilles Meowdoku résolues, la plus longue en 0,61~s.
+      Instances publiques : 54~s $\to$ 3,1~s cumulées (\texttt{public-27} : 41,5~s $\to$ 0,06~s).
+    \end{exampleblock}
+    \column{0.47\textwidth}
+    \begin{alertblock}{Limites}
+      \small 38 instances publiques sur 41 terminées (\texttt{dpll} : 39).
+      \texttt{public-03}, \texttt{06}, \texttt{12} $>$ 60~s ; plus lent sur \texttt{public-04} (0,71~s contre 0,02~s).
+    \end{alertblock}
+  \end{columns}
+\end{frame}
 
 \section{Usage de l'IA}
-\begin{frame}{À compléter}\end{frame}
+\begin{frame}{Usage des assistants IA}
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+    \begin{block}{Ce que nous avons fait avec Claude (Claude Code)}
+      \begin{itemize}\small
+        \item écrire une partie du code ;
+        \item écrire les tests ;
+        \item rédiger des brouillons d'analyse.
+      \end{itemize}
+    \end{block}
+    \column{0.48\textwidth}
+    \begin{exampleblock}{Comment nous l'avons encadré}
+      \begin{itemize}\small
+        \item chaque morceau relu, expliqué et simplifié jusqu'à pouvoir le défendre ;
+        \item résultats chiffrés issus de nos propres exécutions (\texttt{results/}), relançables avec \texttt{bench\_q5.py} et \texttt{bench\_q6.py} ;
+        \item solutions et modèles toujours vérifiés indépendamment (\texttt{is\_valid}, vérification clause par clause).
+      \end{itemize}
+    \end{exampleblock}
+  \end{columns}
+\end{frame}
 
 \end{document}
