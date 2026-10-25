@@ -43,9 +43,9 @@ Les chats initiaux forment donc une solution. Elle n'est pas forcément unique.
 
 \f{dimacs.py} lit un fichier DIMACS : une formule est un ensemble (\f{set}) de \f{frozenset} d'entiers signés, donc les clauses en double disparaissent. \f{dpll.py} contient l'algorithme~1 (\f{dpll\_sat}) et l'algorithme~2 (\f{dpll}, qui renvoie aussi la valuation). Chaque appel recrée une nouvelle formule avec \f{simplifier}.
 
-\paragraph{Validation.} Nous avons utilisé les 41 instances publiques DIMACS (\f{public-instances/}). Le statut obtenu avec \f{dpll} est identique à \f{expected.json} pour les 41 fichiers, et chaque modèle trouvé satisfait toutes les clauses (temps dans \f{results/q2\_public\_times.csv}). 
+\paragraph{Validation.} Nous avons utilisé les 41 instances publiques DIMACS (\f{public-instances/}). Le statut obtenu avec \f{dpll} est identique à \f{expected.json} pour les 41 fichiers, et chaque modèle trouvé satisfait toutes les clauses (temps dans \f{results/public.csv}).
 
-\paragraph{Performances.} Avec le choix aléatoire (une exécution par instance), 28 des 30 instances \f{public-*} sont résolues en moins de 3~s, dont 25 en moins d'une seconde. Les deux autres sont plus dures : \f{public-12} (SAT, 65~s) et \f{public-03} (UNSAT, 117,5~s). Les temps varient beaucoup d'une exécution à l'autre à cause du hasard : \f{public-06} a dépassé 120~s lors d'un premier lancement puis a été résolue en 0,16~s au suivant. Les instances UNSAT coûtent en général plus cher que les SAT, car il faut explorer tout l'arbre.  
+\paragraph{Performances.} Nous avons lancé \f{python sat.py instance.cnf --mode dpll --output-model} (choix aléatoire, 60~s maximum, une exécution par instance, \f{bench\_q6.py}). Sur les 30 instances \f{public-*}, 22 sont résolues en moins d'une seconde et 26 en moins de 3~s ; \f{public-18} prend 3,2~s et \f{public-27} 41,5~s. \f{public-03} (UNSAT) et \f{public-06} (SAT) dépassent 60~s. Les temps varient beaucoup d'une exécution à l'autre à cause du hasard : lors d'un lancement précédent sans limite de temps, \f{public-06} avait été résolue en 0,16~s, \f{public-12} en 65~s (ici 1,1~s) et \f{public-03} en 117~s. Les instances UNSAT coûtent en général plus cher que les SAT, car il faut explorer tout l'arbre.
 
 \section*{Question 3 : résoudre une grille}
 
@@ -61,65 +61,114 @@ Dans \f{heuristics.py}, nous avons implémenté H0, H1, H2 (statique et dynamiqu
 
 \section*{Question 5 : comparaison des heuristiques}
 
-Nous avons rajouté des compteurs à l'algorithme DPLL (décisions, retours arrière, propagations unitaires, littéraux purs) et mesuré le temps CPU et la part passée dans l'heuristique (\f{bench\_q5.py}). Comme protocole nous avons utilisé 160 instances (3-SAT aléatoire, grilles Meowdoku à solution plantée comme dans la question 1, grilles à régions aléatoires SAT ou UNSAT), timeout de 10~s, une exécution par cas. Nous avons rajouté les détails dans \f{NOTES\_Q5.md} et \f{results/}.
+Nous avons rajouté des compteurs à l'algorithme DPLL (décisions, retours arrière, propagations unitaires, littéraux purs) et mesuré le temps CPU et la part passée dans l'heuristique (\f{bench\_q5.py}). Les 9 variantes (H0, H1, H2s, H2d, H3d, H4d, H7s, H7d, H8) ont tourné sur 160 instances : 40 de 3-SAT aléatoire, 60 grilles Meowdoku à solution plantée (donc SAT), 60 grilles à régions aléatoires (27 SAT, 33 UNSAT). Timeout de 10~s, une exécution par cas, résultats bruts dans \f{results/q5.csv}.
 
+\paragraph{Résultat final.} Pour chaque famille : nombre d'instances résolues, temps CPU moyen par instance (en s, un timeout compte 20~s) et nombre moyen de décisions (sur les instances résolues seulement). Sur le 3-SAT le temps moyen est d'au plus $0{,}02$~s, donc nous ne comparons que les décisions. Pour les grilles UNSAT nous ne donnons pas les décisions : la moyenne ne porterait que sur les instances résolues, qui diffèrent d'une variante à l'autre.
+
+\begin{center}
+\small
+\begin{tabular}{l r | rrr | rrr | rr}
+\toprule
+ & 3-SAT & \multicolumn{3}{c|}{Meow plantée (60)} & \multicolumn{3}{c|}{Meow aléat. SAT (27)} & \multicolumn{2}{c}{Meow aléat. UNSAT (33)} \\
+ & décis. & rés. & CPU & décis. & rés. & CPU & décis. & rés. & CPU \\
+\midrule
+H0 & 115 & 60 & 0,25 & 849 & 26 & 0,94 & 778 & 26 & 4,51 \\
+H1 & 120 & 60 & 0,24 & 491 & 27 & 0,10 & 200 & 30 & 2,24 \\
+H2s & 22 & 59 & 0,47 & 739 & 25 & 2,27 & 5537 & 25 & 5,10 \\
+H2d & 18 & 60 & 0,06 & 204 & 25 & 1,52 & 191 & 26 & 4,62 \\
+H3d & 24 & 60 & 0,06 & 204 & 25 & 1,52 & 191 & 26 & 4,61 \\
+H4d & 12 & 60 & 0,06 & 169 & 25 & 1,51 & 130 & 27 & 4,26 \\
+H7s & 26 & 59 & 0,47 & 739 & 25 & 2,25 & 5537 & 25 & 5,10 \\
+H7d & 18 & 60 & 0,08 & 204 & 25 & 1,52 & 191 & 25 & 4,95 \\
+H8 & 17 & 60 & 0,02 & 9 & 27 & 0,03 & 17 & 33 & 0,11 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Classement.}
+\begin{itemize}
+  \item \textbf{3-SAT aléatoire :} H4d (12 décisions), H8 (17), H2d~=~H7d (18), H2s (22), H3d (24), H7s (26), puis loin derrière H0 (115) et H1 (120). Les heuristiques dynamiques font 5 à 10 fois moins de décisions que le choix aléatoire.
+  \item \textbf{Meowdoku :} H8 est première partout : 9 décisions en moyenne sur les grilles plantées contre 169 pour la meilleure des autres (H4d), et c'est la seule qui résout les 33 grilles UNSAT (H1 en résout 30, H4d 27, les autres 25 ou 26). Derrière H8, le classement dépend de la famille. Sur les grilles plantées : H2d, H3d, H4d et H7d (0,06 à 0,08~s), puis H0 et H1 (0,25~s), puis H2s et H7s (0,47~s, avec un timeout). Sur les grilles à régions aléatoires, H1 est deuxième, devant H0 et les dynamiques, et les statiques sont dernières.
+\end{itemize}
+
+\paragraph{Explications.}
 \begin{enumerate}
-  \item \textbf{Les heuristiques classiques (H2 à H7) sont mauvaises sur Meowdoku.} Chaque variable est positive dans une seule clause et négative dans des dizaines. H2d, H3d, H4d et H7d choisissent donc la valeur $0$ pour 100~\% de leurs décisions, ce qui ne propage presque rien. Pour $n\le 10$, elles font plus de décisions que le choix aléatoire (88 contre 17 pour $n=10$).
-  \item \textbf{Sur du 3-SAT aléatoire, c'est l'inverse.} Les heuristiques dynamiques font 5 à 10 fois moins de décisions que H0 et H1, et H4d est la meilleure. L'intuition classique est juste, mais elle dépend de la structure du problème.
-  \item \textbf{H8 domine sur Meowdoku.} Pour $n=14$ sur grilles SAT, elle prend 24 décisions contre 670 à 3\,200 pour les autres. Elle est la seule à résoudre les 7 grilles UNSAT de $n=14$ dans le temps imparti. Sur UNSAT avec $n=10$, elle fait 3 décisions contre 430 à 6\,600. En revanche elle dépend de l'encodage et n'est pas générique.
-  \item \textbf{Statique contre dynamique.} Le dynamique recalcule tout à chaque décision : jusqu'à 55~\% du temps CPU. Sur Meowdoku, cela vaut largement le coup ($n=12$ : H2s 3\,124 décisions, H2d 242). Sur du 3-SAT de petite taille, gain et coût s'annulent.
-  \item \textbf{Sur UNSAT,} le nombre de décisions est égal au nombre de retours arrière et la valeur choisie en premier n'a pas d'importance.
+  \item \textbf{Les heuristiques classiques (H2 à H7) sont mauvaises sur Meowdoku.} Chaque variable est positive dans une seule clause et négative dans des dizaines. H2d, H3d, H4d et H7d choisissent donc la valeur $0$ pour 100~\% de leurs décisions, ce qui ne propage presque rien. Pour $n=10$ sur grilles plantées, elles font 88 décisions contre 17 pour H0 et 14 pour H1.
+  \item \textbf{Sur 3-SAT c'est l'inverse :} choisir la variable la plus fréquente marche, et H4d, qui ne compte que dans les clauses les plus courtes, est la meilleure. Le bon choix d'heuristique dépend donc de la structure du problème.
+  \item \textbf{H8 gagne sur Meowdoku} parce qu'elle exploite l'encodage : elle prend la clause <<~au moins un chat dans la région~>> la plus réduite et met une case à $1$, ce qui élimine d'un coup toutes les cases en conflit. Sa limite : elle dépend de l'encodage (sur 3-SAT elle marche, 17 décisions, mais ne bat pas H4d).
+  \item \textbf{Statique contre dynamique.} Le dynamique recalcule tout à chaque décision : l'heuristique prend en moyenne 45 à 54~\% du temps CPU des variantes dynamiques sur les grilles plantées (contre 25~\% pour les statiques). Mais cela vaut le coup : à $n=12$ sur grilles plantées, H2s fait 3\,124 décisions et H2d 242.
+  \item \textbf{Sur UNSAT,} le nombre de décisions est égal au nombre de retours arrière et la valeur choisie en premier n'a pas d'importance : seul l'ordre des variables compte.
 \end{enumerate}
 
-\paragraph{Limites.} Nous avons réalisé une seule exécution par cas, et les grilles à régions aléatoires sont surtout UNSAT à partir de $n=12$.
+\paragraph{Limites.} Une seule exécution par cas (H0 est aléatoire, et les temps changent un peu d'une exécution à l'autre : un nouveau lancement a donné par exemple 69 timeouts au lieu de 78), quelques instances par taille, pas de test statistique : ce sont des tendances. Les grilles à régions aléatoires sont surtout UNSAT à partir de $n=12$, et les grilles à solution plantée ne ressemblent peut-être pas à celles des enseignants.
 
 \section*{Question 6 : solveur optimisé}
 
 \paragraph{Interface.} \f{sat.py instance.cnf [--mode dpll|optimized] [--output-model]}. Le mode \f{dpll} appelle l'algorithme~2 de la question~2 ; sans mode, on utilise \f{optimized}. Seul le résultat est écrit sur stdout (\f{s SATISFIABLE} ou \f{s UNSATISFIABLE}, puis \f{v \dots{} 0} avec \f{--output-model}). Une erreur d'usage donne un message sur stderr et le code de retour~2. Les deux modes lisent le fichier avec le même lecteur, plus tolérant que celui de la question~2 (clause sur plusieurs lignes, dernier \f{0} manquant, ligne \f{\%}\dots).
 
-\paragraph{Démarche.} Suivant la conclusion de la question~5 (H8 est la bonne heuristique), nous sommes partis du DPLL de \f{dpll.py} et l'avons profilé. En chronométrant \f{dpll} avec H8 sur 10 grilles de chaque famille Meowdoku ($n=10,12,14$), \f{simplifier} prend 58 à 63~\% du temps, \f{trouver\_unitaire} 11 à 13~\%, \f{trouver\_pur} environ 5~\% et H8 14 à 18~\%, soit 92 à 94~\% au total pour ces trois causes (90~\% sur du 3-SAT à 50 variables). Toutes parcourent toute la formule à chaque étape. Nous n'avons corrigé que ces trois causes, pour garder un code simple à expliquer :
-
-\medskip
-\begin{tabular}{p{0.42\textwidth}p{0.48\textwidth}}
-\toprule
-Cause de lenteur dans \f{dpll.py} & Correction dans \f{optimized.py}\\
-\midrule
-\f{simplifier} reconstruit toute la formule à chaque affectation ($O(|F|)$)
-& La formule ne change jamais. Un tableau d'affectation et une pile des littéraux affectés ; revenir en arrière revient à défaire la fin de la pile.\\[4pt]
-\f{trouver\_unitaire} et \f{trouver\_pur} parcourent toute la formule
-& Deux littéraux surveillés par clause : quand un littéral devient faux, on ne regarde que les clauses qui le surveillent. Le littéral pur est abandonné : il ne sert à rien sur Meowdoku et coûte $O(|F|)$.\\[4pt]
-H8 relit toute la formule à chaque décision
-& Les clauses entièrement positives sont mises de côté une fois ; une décision ne parcourt qu'elles.\\
-\bottomrule
-\end{tabular}
-\medskip
-
-La recherche reste celle de DPLL : branche <<~vrai~>> puis <<~faux~>>, retour arrière chronologique. Le programme est récursif, avec la limite de récursion relevée.
+\paragraph{Idée générale.} Nous sommes partis de \f{dpll.py} avec l'heuristique H8, puisque la question~5 montre que c'est la meilleure sur Meowdoku. Le problème de \f{dpll}, c'est qu'à chaque fois qu'on affecte un littéral, il reparcourt toute la formule : \f{simplifier} pour la mettre à jour, \f{trouver\_unitaire} pour chercher une clause unitaire, \f{trouver\_pur} pour un littéral pur, et H8 pour retrouver les clauses positives. En profilant \f{dpll} avec H8 sur les grilles Meowdoku générées ($n=10,12,14$), \f{simplifier} prend environ 40~\% du temps, \f{trouver\_unitaire} environ 30~\% et H8 environ 20~\%. Dans \f{optimized.py}, nous gardons exactement la même recherche (propagation, puis décision, branche <<~vrai~>> puis <<~faux~>>, retour arrière) mais nous évitons ces parcours complets :
+\begin{itemize}
+  \item \textbf{\f{simplifier}.} Au lieu de parcourir la formule à chaque affectation pour la mettre à jour (supprimer les clauses satisfaites et les littéraux faux), on ne la modifie jamais. On garde juste un tableau d'affectation \f{val} (pour chaque littéral : vrai, faux ou libre) et la liste \f{trail} des littéraux affectés dans l'ordre. Pour revenir en arrière, on dépile \f{trail} et on remet les cases de \f{val} à <<~libre~>>.
+  \item \textbf{\f{trouver\_unitaire}.} C'est la partie qui rapporte le plus. Pour chaque clause, on surveille deux de ses littéraux (\f{watch}). Tant que ces deux littéraux ne sont pas faux, la clause ne peut être ni unitaire ni fausse. Donc quand on affecte un littéral, on regarde seulement les clauses qui le surveillaient, pas toute la formule. Pour chacune, on cherche un autre littéral non faux à surveiller à la place. S'il n'y en a pas, il ne reste que l'autre littéral surveillé : s'il est libre, la clause est unitaire et on l'affecte, sinon c'est un conflit.
+  \item \textbf{\f{trouver\_pur}.} On le garde comme dans \f{dpll}, mais on ne le cherche qu'avant chaque décision (par un parcours de la formule), et non plus à chaque étape de propagation. C'est un parcours de la formule, mais il pèse peu dans le profil.
+  \item \textbf{H8.} On met de côté les clauses entièrement positives une seule fois au début, pour ne pas avoir à reparcourir toute la formule à chaque décision pour les retrouver. Une clause entièrement positive le reste toujours, donc cette liste ne change pas. Quand il n'y a plus de clause positive, H8 prend la première variable libre d'une liste triée une fois par nombre d'occurrences (H2 statique), plus simple que le repli sur H7d de \f{dpll}.
+\end{itemize}
 
 \paragraph{Tests} (\f{tests/test\_q6.py}, 30 tests). Lecteur DIMACS (commentaires, \f{\%}, clauses éclatées, \f{0} manquant\dots), cas limites (formule vide, clause vide, clauses unitaires contradictoires, doublons, tautologies, variables au-delà de l'en-tête), comparaison avec la force brute, principe des tiroirs, grilles Meowdoku dans les coins, interface en ligne de commande.
 
-\paragraph{Résultats.} Sur les 160 instances du banc (timeout de 10~s, un processus Python par instance, démarrage compris), les deux modes donnent toujours le même statut :
+\paragraph{Résultats sur Meowdoku.} Nous avons lancé \f{python sat.py grille.cnf --mode dpll|optimized --output-model} sur les 120 grilles Meowdoku générées pour la question~5 (10 par taille, plantées et à régions aléatoires), avec 60~s maximum (\f{bench\_q6.py}). Le modèle est vérifié clause par clause. Les deux modes donnent le même statut partout où \f{dpll} termine. Le temps est le temps réel du processus, démarrage de Python compris (environ 0,01~s par exécution, d'où des totaux d'environ 0,2~s pour 10 petites grilles). Pour chaque taille, \emph{total} est la somme des 10 grilles et \emph{max} le temps de la plus longue ; un timeout (TO) compte 60~s. \f{dpll} est ici celui de la question~2, avec choix aléatoire, donc ses temps varient d'un lancement à l'autre.
 
 \medskip
-\begin{tabular}{lcc}
+\begin{tabular}{llrrrr}
 \toprule
-Famille & \f{dpll} (résolues, temps cumulé) & \f{optimized}\\
+Grilles & $n$ & \f{dpll} : total & max & \f{optimized} : total & max\\
 \midrule
-3-SAT, $n=20$ à $50$ & 40/40, 1,8~s & 40/40, 1,3~s\\
-Meowdoku aléatoire, $n=5$ à $10$ & 40/40, 2,4~s & 40/40, 1,2~s\\
-Meowdoku aléatoire, $n=12$ & 9/10, 20,9~s & 10/10, 0,4~s\\
-Meowdoku aléatoire, $n=14$ & 5/10, 63,5~s & 10/10, 0,4~s\\
-Meowdoku plantée, $n=12,14$ & 20/20, 3,1~s & 20/20, 0,8~s\\
+plantée & 5 & 0,23~s & 0,06~s & 0,19~s & 0,06~s \\
+plantée & 6 & 0,19~s & 0,02~s & 0,14~s & 0,01~s \\
+plantée & 8 & 0,22~s & 0,03~s & 0,15~s & 0,02~s \\
+plantée & 10 & 0,28~s & 0,03~s & 0,21~s & 0,03~s \\
+plantée & 12 & 2,30~s & 1,76~s & 0,28~s & 0,04~s \\
+plantée & 14 & 1,09~s & 0,38~s & 0,39~s & 0,08~s \\
+aléatoire & 5 & 0,23~s & 0,04~s & 0,22~s & 0,05~s \\
+aléatoire & 6 & 0,22~s & 0,03~s & 0,18~s & 0,02~s \\
+aléatoire & 8 & 0,22~s & 0,03~s & 0,17~s & 0,02~s \\
+aléatoire & 10 & 1,58~s & 0,57~s & 0,20~s & 0,03~s \\
+aléatoire & 12 & 29,49~s & 14,83~s & 0,41~s & 0,12~s \\
+aléatoire & 14 & 355,49~s (4 TO) & 60,00~s & 1,44~s & 0,61~s \\
 \bottomrule
 \end{tabular}
 \medskip
 
-Le temps minimal d'un processus Python est d'environ 0,03~s par instance. Sur de grandes grilles plantées, \f{optimized} résout $n=30$ en 0,02~s et $n=40$ (graine 2) en 0,07~s.
+\f{optimized} résout les 120 grilles, la plus longue en 0,61~s. \f{dpll} dépasse 60~s sur 4 grilles à régions aléatoires de $n=14$. Cet écart mélange deux effets : l'heuristique (H8 au lieu du hasard) et les structures de données. Pour isoler le second, nous avons comparé en Python \f{dpll.py} avec H8 à \f{optimized.py} sur les mêmes grilles (une seule exécution de chacun, car les deux sont déterministes) : sur les 10 grilles aléatoires de $n=14$, 1,91~s contre 0,77~s, et sur celles de $n=12$, 0,26~s contre 0,13~s. Donc les structures de données donnent un facteur 2 à 2,5 et H8 le reste.
 
-\paragraph{Limites.} Sans apprentissage de clauses, certaines grilles restent trop dures : une grille plantée de $n=35$ (graine 1) et une de $n=40$ (graine 3) dépassent 30~s. Les grilles UNSAT à régions aléatoires de $n\ge 25$ sont aussi hors de portée (elles sont difficiles même pour MiniSat). Nous n'avons pas testé les fichiers de la compétition. Une première version en CDCL (apprentissage, VSIDS, redémarrages) existe dans l'historique git (commit \f{0ffdbb2}) ; nous l'avons abandonnée parce qu'elle était trop compliquée pour que nous puissions l'expliquer complètement en soutenance.
+\paragraph{Résultats sur les instances publiques.} Même commande, sur les 41 fichiers de \f{public-instances/} (60~s maximum, une exécution, \f{results/public.csv}). Les deux modes donnent un résultat correct (statut conforme à \f{expected.json}, modèle valide) sur toutes les instances terminées : \f{dpll} en termine 39 sur 41, \f{optimized} 38. Le tableau ne garde que les instances qui prennent plus d'une demi-seconde avec l'un des deux ; toutes les autres prennent moins de 0,5~s avec les deux.
+
+\medskip
+\begin{tabular}{llrr}
+\toprule
+Instance & attendu & \f{dpll} (Q2, choix aléatoire) & \f{optimized}\\
+\midrule
+\f{public-03} & UNSAT & $>$60~s & $>$60~s \\
+\f{public-04} & SAT & 0,02~s & 0,71~s \\
+\f{public-06} & SAT & $>$60~s & $>$60~s \\
+\f{public-11} & SAT & 0,97~s & 0,13~s \\
+\f{public-12} & SAT & 1,13~s & $>$60~s \\
+\f{public-15} & UNSAT & 1,49~s & 0,09~s \\
+\f{public-18} & SAT & 3,18~s & 0,67~s \\
+\f{public-19} & SAT & 1,91~s & 0,09~s \\
+\f{public-22} & UNSAT & 0,73~s & 0,06~s \\
+\f{public-27} & SAT & 41,50~s & 0,06~s \\
+\f{public-30} & UNSAT & 1,04~s & 0,06~s \\
+\bottomrule
+\end{tabular}
+\medskip
+
+\f{optimized} est nettement meilleur sur la plupart des instances moyennes (\f{public-11}, \f{15}, \f{18}, \f{19}, \f{22}, \f{27}, \f{30}). Mais trois instances ne sont pas terminées en 60~s (\f{public-03}, \f{06}, \f{12}). \f{dpll} en termine une de plus (\f{public-12}) sur ce lancement, probablement grâce à un tirage aléatoire favorable (il avait pris 65~s une autre fois). Sur \f{public-04}, \f{optimized} est plus lent (0,71~s contre 0,02~s). Au total, sur les instances terminées, \f{optimized} cumule 3,1~s contre 54~s pour \f{dpll}.
+
+\paragraph{Limites.} Sans apprentissage de clauses, certaines instances restent trop dures : les trois instances publiques ci-dessus, certaines grandes grilles Meowdoku (par exemple $n=30$), et les grilles UNSAT à régions aléatoires de $n\ge 25$. Nous n'avons pas testé les fichiers de la compétition. Une première version en CDCL (apprentissage, VSIDS, redémarrages) existe dans l'historique git (commit \f{0ffdbb2}) ; nous l'avons abandonnée parce qu'elle était trop compliquée pour que nous puissions l'expliquer complètement en soutenance.
 
 \section*{Usage des assistants IA}
 
-Nous avons utilisé Claude (Claude Code) pour écrire une partie du code, les tests et les brouillons des notes d'analyse. Pour chaque morceau, nous avons relu, fait expliquer et simplifié le code jusqu'à pouvoir le défendre. Les résultats chiffrés viennent de nos propres exécutions (\f{results/}, \f{NOTES\_Q2.md}, \f{NOTES\_Q5.md}), que l'on peut relancer.
+Nous avons utilisé Claude (Claude Code) pour écrire une partie du code, les tests et des brouillons d'analyse. Pour chaque morceau, nous avons relu, fait expliquer et simplifié le code jusqu'à pouvoir le défendre. Les résultats chiffrés viennent de nos propres exécutions (\f{results/}), que l'on peut relancer avec \f{bench\_q5.py} et \f{bench\_q6.py}.
 
 \end{document}
