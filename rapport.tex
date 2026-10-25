@@ -30,7 +30,7 @@ Nous nous sommes limités au cas $N=M=K$ : grille carrée, un chat par ligne et 
   \item \emph{au moins un chat par région} : pour chaque région, la clause $(x_a\vee x_b\vee\dots)$ sur toutes ses cases.
 \end{itemize}
 
-\paragraph{Correction.} Les clauses de conflit donnent au plus un chat par ligne, par colonne et par région. Avec $n$ régions et au moins un chat dans chacune, il y a exactement un chat par région. Les $n$ chats sont donc sur $n$ lignes différentes, soit exactement un par ligne, et de même par colonne. Le nombre de clauses est de l'ordre de $n^4$, car on examine toutes les paires de cases (\f{meowdoku.py}, fonction \f{encode}). La fonction \f{is\_valid} contrôle une configuration directement avec les règles du jeu, sans passer par la CNF.
+\paragraph{Correction.} Les clauses de conflit donnent au plus un chat par ligne, par colonne et par région. Avec $n$ régions et au moins un chat dans chacune, il y a exactement un chat par région. Les $n$ chats sont donc sur $n$ lignes différentes, soit exactement un par ligne, et de même par colonne. L'encodage teste toutes les paires de cases (\f{meowdoku.py}, fonction \f{encode}), soit $n^2(n^2-1)/2$ paires : il prend un temps en $O(n^4)$. Mais chaque case n'est en conflit qu'avec $O(n)$ autres (sa ligne, sa colonne, sa région, ses voisines), donc le nombre de clauses produites est en $O(n^3)$ en pratique (1\,331 clauses pour $n=10$, 11\,755 pour $n=20$) et en $O(n^4)$ seulement dans le pire cas d'une région couvrant presque toute la grille. La fonction \f{is\_valid} contrôle une configuration directement avec les règles du jeu, sans passer par la CNF.
 
 \paragraph{Générateur} (\f{generator.py}). La méthode garantit l'existence d'une solution :
 \begin{enumerate}
