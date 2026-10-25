@@ -1,6 +1,6 @@
 # MLSF : solveur DPLL et Meowdoku (partie I)
 
-Sujet : `sujet_projet.pdf`. Python 3.12, aucune dépendance. Rapport : `rapport.tex`.
+Python 3.12, aucune dépendance. Rapport : `rapport.pdf` (source `rapport.tex`).
 
 ## Fichiers
 | Fichier | Rôle |
