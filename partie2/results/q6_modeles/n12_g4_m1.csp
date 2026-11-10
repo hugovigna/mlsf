@@ -1,0 +1,37 @@
+const N = 12;     // lignes
+const M = 12;     // colonnes
+const K = 12;     // régions
+enum Zone = { C, B, A, D, E, H, F, G, I, J, L, ZK };
+const region[N][M] = [
+    [C, C, C, C, C, B, B, B, A, A, A, A],
+    [C, C, C, C, C, C, B, B, B, A, A, A],
+    [C, C, C, C, D, D, D, B, D, A, A, A],
+    [E, E, E, E, D, D, D, D, D, H, A, A],
+    [E, E, E, E, D, D, D, D, D, H, A, A],
+    [E, E, E, E, E, D, D, D, F, H, H, H],
+    [E, E, E, E, G, G, G, F, F, H, H, H],
+    [E, E, I, G, G, G, G, G, J, J, H, H],
+    [E, E, I, I, I, G, L, G, J, J, H, H],
+    [ZK, ZK, I, I, I, L, L, G, J, J, J, J],
+    [ZK, ZK, I, I, I, L, L, L, J, J, J, J],
+    [ZK, ZK, I, L, L, L, L, L, J, J, J, J]
+];
+
+array row[Zone] : 1..N;
+array col[Zone] : 1..M;
+
+// au plus un chat par ligne et par colonne
+constraint allDifferent(row[*]);
+constraint allDifferent(col[*]);
+
+// le chat de la région z est dans la région z
+forall z in Zone, i in 1..N, j in 1..M {
+    constraint region[i][j] != z -> not (row[z] = i and col[z] = j);
+}
+
+// pas deux chats voisins (en diagonale : lignes et colonnes sont distinctes)
+forall z1 in Zone, z2 in Zone, i in 1..N, j in 1..M,
+       k in (i - 1)..(i + 1), l in (j - 1)..(j + 1) {
+    constraint z1 < z2 and k != i and l != j
+               -> not (row[z1] = i and col[z1] = j and row[z2] = k and col[z2] = l);
+}

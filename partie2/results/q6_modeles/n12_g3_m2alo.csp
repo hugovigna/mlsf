@@ -1,0 +1,40 @@
+const N = 12;     // lignes
+const M = 12;     // colonnes
+const K = 12;     // régions
+enum Zone = { A, F, B, C, I, D, E, L, H, G, ZK, J };
+const region[N][M] = [
+    [A, A, F, F, F, B, B, B, B, B, B, C],
+    [A, A, F, F, F, F, B, B, B, C, C, C],
+    [A, F, F, F, F, F, F, F, I, C, C, C],
+    [D, D, D, F, F, F, F, I, I, I, C, C],
+    [F, D, F, F, F, F, F, F, I, E, E, E],
+    [F, F, F, F, F, F, F, F, I, E, E, E],
+    [L, H, H, F, H, F, I, I, I, G, G, G],
+    [L, H, H, H, H, H, I, I, I, G, G, G],
+    [L, H, H, H, H, H, H, I, ZK, G, G, G],
+    [L, H, H, H, J, J, H, J, ZK, ZK, G, G],
+    [L, H, H, H, J, J, J, J, ZK, ZK, ZK, ZK],
+    [L, L, H, J, J, J, J, J, ZK, ZK, ZK, ZK]
+];
+
+array cat[N][M] : bool;
+
+// exactement un chat par ligne et par colonne (N = M = K)
+forall i in 1..N { constraint exactlyOne(cat[i][*]); }
+forall j in 1..M { constraint exactlyOne(cat[*][j]); }
+
+// pas deux chats voisins (en diagonale : lignes et colonnes sont exclusives)
+forall i in 1..(N - 1), j in 1..M, l in (j - 1)..(j + 1) {
+    constraint l >= 1 and l <= M and l != j -> not (cat[i][j] and cat[i + 1][l]);
+}
+
+// au plus un chat par région : pas deux chats dans deux cases distinctes d'une même région
+forall i in 1..N, j in 1..M, k in i..N, l in 1..M {
+    constraint (k > i or l > j) and region[i][j] = region[k][l]
+               -> not (cat[i][j] and cat[k][l]);
+}
+
+// (redondant) au moins un chat par région
+forall z in Zone {
+    constraint atLeastOne(cat[i][j] for i in 1..N, j in 1..M where region[i][j] = z);
+}

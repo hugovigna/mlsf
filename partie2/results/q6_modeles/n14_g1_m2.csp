@@ -1,0 +1,37 @@
+const N = 14;     // lignes
+const M = 14;     // colonnes
+const K = 14;     // régions
+enum Zone = { B, C, A, D, E, F, G, I, H, ZK, J, L, ZN, ZM };
+const region[N][M] = [
+    [B, B, B, B, C, C, C, C, A, A, A, A, A, A],
+    [B, B, B, B, C, C, C, C, C, A, A, A, A, A],
+    [D, B, B, B, C, C, C, C, C, A, A, E, A, A],
+    [D, D, D, F, F, F, F, F, A, A, A, E, E, E],
+    [D, D, D, F, F, F, F, G, G, G, E, E, E, E],
+    [F, F, F, F, F, F, F, G, G, G, G, G, E, E],
+    [F, F, F, F, F, F, G, G, G, G, G, E, E, E],
+    [F, F, F, I, I, H, H, H, G, ZK, ZK, ZK, ZK, E],
+    [J, J, I, I, I, H, H, H, G, ZK, ZK, ZK, ZK, ZK],
+    [J, J, I, I, I, H, L, L, L, ZK, ZK, ZK, ZK, ZK],
+    [J, J, I, I, I, L, L, L, L, ZK, ZK, ZK, ZK, ZK],
+    [J, J, J, I, I, ZN, L, L, L, L, ZK, ZK, ZM, ZM],
+    [J, J, I, I, I, ZN, ZN, L, L, L, ZM, ZM, ZM, ZM],
+    [J, J, J, ZN, ZN, ZN, ZN, ZN, ZN, L, L, ZM, ZM, ZM]
+];
+
+array cat[N][M] : bool;
+
+// exactement un chat par ligne et par colonne (N = M = K)
+forall i in 1..N { constraint exactlyOne(cat[i][*]); }
+forall j in 1..M { constraint exactlyOne(cat[*][j]); }
+
+// pas deux chats voisins (en diagonale : lignes et colonnes sont exclusives)
+forall i in 1..(N - 1), j in 1..M, l in (j - 1)..(j + 1) {
+    constraint l >= 1 and l <= M and l != j -> not (cat[i][j] and cat[i + 1][l]);
+}
+
+// au plus un chat par région : pas deux chats dans deux cases distinctes d'une même région
+forall i in 1..N, j in 1..M, k in i..N, l in 1..M {
+    constraint (k > i or l > j) and region[i][j] = region[k][l]
+               -> not (cat[i][j] and cat[k][l]);
+}

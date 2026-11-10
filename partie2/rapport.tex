@@ -1,0 +1,126 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,array}
+\usepackage{enumitem}
+\usepackage{microtype}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\newcommand{\f}[1]{\texttt{#1}}
+
+\title{Projet MLSF -- Partie II\\Un compilateur de contraintes vers SAT}
+\author{Hugo Vigna \and Salomé Fonvielle}
+\date{Modélisation logique et systèmes formels}
+
+\begin{document}
+\maketitle
+
+Le compilateur lit un fichier \f{.csp}, le transforme en CNF (DIMACS) et, avec \f{-{}-solve}, appelle le solveur de la partie~I sans le modifier. Le code est en Python avec \f{lark} ; le \f{README} explique comment lancer chaque fichier. Chaque module correspond à une étape : \f{syntax.py} (Q2), \f{analyse.py} (Q3), \f{encode.py} (Q1 et Q4), \f{csp.py} (Q5), \f{meow\_csp.py} (Q6).
+
+\section*{Question 1 : de la formule propositionnelle à la CNF}
+
+Les formules sont des dataclasses immuables (\f{ground.py}) : \f{Not}, \f{And}, \f{Or} à nombre d'arguments quelconque, des littéraux, et des constantes. Des constructeurs (\f{mk\_not}, \f{mk\_and}, \f{mk\_or}) simplifient au passage : constantes, doublons, conjonctions imbriquées aplaties, et négation poussée jusqu'aux feuilles (De Morgan). La négation ne porte donc que sur des littéraux.
+
+La mise en CNF est celle de Tseitin : chaque sous-formule $f$ qui n'est ni un littéral ni une constante reçoit une variable $a$ avec $a\leftrightarrow f$ (clauses dans les deux sens). Deux sous-formules identiques partagent la même variable (un dictionnaire), et une disjonction de littéraux posée telle quelle devient une seule clause sans variable auxiliaire. La sortie DIMACS ajoute des lignes \f{c var k nom = valeur} qui donnent le nom de chaque variable du modèle.
+
+\paragraph{Validation.} \f{tests/test\_random.py} tire des modèles aléatoires (comparaisons, connecteurs, globales, tableaux, boucles, énumérés) et compare les solutions de la CNF à celles d'un interprète écrit à part (\f{tests/oracle.py}), qui énumère toutes les affectations et n'utilise rien du compilateur. Les solutions de la CNF sont énumérées avec le solveur de la partie~I et des clauses de blocage. Les deux ensembles de solutions sont égaux, avec les deux encodages de <<~au plus un~>>. Pour garder un test rapide, on saute les modèles qui ont plus de 80 solutions.
+
+\section*{Question 2 : grammaire et syntaxe abstraite}
+
+La grammaire (\f{syntax.py}) est une grammaire Lark LALR(1). Les priorités sont codées par niveaux de règles, du plus faible au plus fort : \f{->} (associatif à droite), \f{or}, \f{and}, \f{not}, comparaison, \f{+ -}, \f{*}, négation unaire. Une comparaison ne s'enchaîne pas (\f{a < b < c} est refusé). Les mots-clés sont réservés : l'analyseur lexical <<~basic~>> les distingue des identificateurs. L'AST est formé de dataclasses qui gardent leur position (ligne, colonne) ; celle-ci est ignorée par l'égalité, ce qui permet de tester que \f{parse(pretty(a)) == a} sur des arbres aléatoires. Une erreur de syntaxe est affichée sous la forme \f{fichier: line L, column C: message}.
+
+\section*{Question 3 : analyse et déroulage}
+
+\f{analyse.py} fait un seul passage sur l'AST avec une table des symboles (constantes, énumérés, variables, tableaux, indices de boucle). Tout ce qui est connu est calculé tout de suite : arithmétique sur les constantes, \f{abs}, accès aux tableaux de constantes, bornes des boucles. Les \f{forall} sont déroulés. Les tranches (\f{t[i][*]}) et les listes en compréhension sont développées en listes d'arguments. Les opérateurs \f{and}, \f{or}, \f{->} s'évaluent paresseusement : dans $l\ge 1 \text{ and } l\le M \text{ and } \dots\ \f{cat[i+1][l]}$ (modèle~2), la case \f{cat[i+1][l]} n'est jamais évaluée quand $l$ sort de la grille. Conséquence : une branche jamais évaluée n'est pas vérifiée au niveau des types.
+
+Le résultat est une liste de formules sans boucle sur des cases de variables. Les erreurs (nom non déclaré ou déjà déclaré, types incompatibles, indice hors bornes, mauvais nombre d'indices, variable utilisée dans un indice ou une borne, tranche hors d'une globale) sont signalées avec leur position. Une contrainte toujours fausse produit un avertissement et la clause vide : la CNF est alors insatisfaisable.
+
+\section*{Question 4 : traduction en CNF}
+
+\paragraph{Domaines.} Encodage direct : une case de domaine $\{v_1,\dots,v_k\}$ donne $k$ variables $x_{v}$, avec <<~au moins une~>> et <<~au plus une valeur~>>. Les énumérés sont numérotés $0,1,\dots$ dans l'ordre de déclaration, donc \f{z1 < z2} a un sens.
+
+\paragraph{Comparaisons.} Case contre entier connu : on liste les valeurs qui satisfont la comparaison et celles qui ne la satisfont pas, et on écrit la disjonction des bonnes ou la conjonction des négations des mauvaises, selon la plus courte. Case contre case : une clause $(\neg x_v \vee y_{w_1}\vee\dots)$ par valeur $v$ de $x$, où les $w_i$ sont les valeurs de $y$ en relation avec $v$ ; pour \f{!=}, une clause binaire $(\neg x_v\vee\neg y_v)$ par valeur commune.
+
+\paragraph{Globales.} \f{atLeastOne} est une disjonction, \f{atMostOne} un ensemble de clauses binaires, \f{exactlyOne} les deux, \f{allDifferent} un <<~au plus un~>> par valeur possible. Les arguments peuvent être des formules quelconques.
+
+\paragraph{Compteur de Sinz (optionnel).} Avec \f{-{}-amo sinz}, un <<~au plus un~>> sur $n\ge 5$ littéraux utilise le compteur séquentiel : $n-1$ variables auxiliaires et $3n-4$ clauses, au lieu de $n(n-1)/2$ clauses. En dessous de 5 littéraux, le deux à deux est plus court et reste utilisé. Le compteur n'est employé que lorsque la globale est posée directement comme contrainte, ou pour les domaines. Il ne peut pas servir sous une négation ou dans une implication, car ses variables auxiliaires ne sont définies que dans un sens : \f{not atMostOne(...)} serait faux pour certaines valeurs des auxiliaires. Dans ces cas, on garde la traduction deux à deux, qui est une vraie formule. Le résultat de l'énumération des solutions est le même avec les deux encodages (tests).
+
+\section*{Question 5 : lien avec le solveur}
+
+\f{csp.py} compile puis appelle \f{optimized.resoudre} (ou \f{dpll.dpll} avec \f{-{}-solver dpll}) du dossier \f{partie1/}. Avec \f{-{}-solve}, la sortie est \f{s SATISFIABLE} puis une ligne \f{nom = valeur} par case (les entiers, \f{true}/\f{false} ou le nom de l'énuméré), ou \f{s UNSATISFIABLE}. Les erreurs vont sur \f{stderr} avec le code de sortie~1.
+
+\paragraph{Exemples} (\f{exemples/}, vérifiés par \f{tests/test\_examples.py} qui ne lit que la sortie imprimée) : 4 pigeons dans 3 trous (UNSAT) ; 8 reines (diagonales vérifiées) ; coloriage du graphe de Petersen en 3 couleurs (toutes les arêtes vérifiées) ; sudoku $9\times 9$ (lignes, colonnes, boîtes et indices donnés vérifiés). Les quatre répondent comme attendu avec les deux solveurs et les deux encodages.
+
+\section*{Question 6 : Meowdoku}
+
+\paragraph{6.1.} \f{meow\_csp.py} lit une grille de la partie~I et écrit \f{N}, \f{M}, \f{K}, l'énuméré \f{Zone} et le tableau \f{region}, suivis des règles d'un des modèles. Les noms de région \f{K}, \f{M}, \f{N} (produits par le générateur dès 11 régions) entrent en collision avec les constantes : ils sont renommés \f{ZK}, \f{ZM}, \f{ZN}.
+
+\paragraph{6.2.} Les deux modèles de l'énoncé tels quels. Le modèle~2 est complété par <<~au plus un chat par région~>>. Aucune tranche ne désigne une région ; on interdit donc chaque paire de cases distinctes de la même région, une fois par paire :
+\begin{verbatim}
+forall i in 1..N, j in 1..M, k in i..N, l in 1..M {
+    constraint (k > i or l > j) and region[i][j] = region[k][l]
+               -> not (cat[i][j] and cat[k][l]);
+}
+\end{verbatim}
+Le vérificateur (\f{est\_valide}) ne connaît que la grille et les positions des chats : un chat par région, au plus un par ligne et par colonne, pas de chats voisins. Sur la grille du sujet et sur des grilles carrées aléatoires, les modèles~1 et~2 donnent des solutions valides et répondent comme une recherche exhaustive.
+
+\paragraph{6.3 : comparaison des modèles.} \f{bench\_q6.py} lance \f{csp.py -{}-solve} sur 5 grilles par taille (générateur de la partie~I), temps limite 60~s, 4 processus en parallèle. Le tableau donne la taille de la CNF (une grille représentative) et le temps de résolution médian en secondes ; entre parenthèses, le nombre de dépassements du temps limite sur 5 (un dépassement compte pour 60~s dans la médiane). Toutes les solutions trouvées ont été validées par \f{est\_valide}.
+
+\begin{center}
+\small
+\begin{tabular}{rlrrrr}
+\toprule
+$n$ & modèle & variables & clauses & \f{optimized} (s) & \f{dpll} (s)\\
+\midrule
+6  & 1    & 72  & 2\,052  & 0,01 & 0,03\\
+6  & 2    & 36  & 271     & 0,00 & 0,00\\
+8  & 1    & 128 & 6\,848  & 0,31 & 0,59\\
+8  & 2    & 64  & 697     & 0,00 & 0,01\\
+10 & 1    & 200 & 17\,300 & 1,78 & 8,01 (1)\\
+10 & 2    & 100 & 1\,294  & 0,04 & 0,03\\
+12 & 1    & 288 & 36\,720 & $>60$ (3) & $>60$ (3)\\
+12 & 2    & 144 & 2\,319  & 3,97 & 1,62\\
+14 & 1    & 392 & 69\,188 & $>60$ (4) & $>60$ (3)\\
+14 & 2    & 196 & 3\,755  & 2,61 & 0,08\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Le compilateur et le solveur sont les mêmes ; seule la CNF change. Le modèle~1 a deux fois plus de variables (chaque \f{row[z]} et \f{col[z]} a $N$ valeurs, soit $2N^2$ variables contre $N^2$) et surtout 8 à 18 fois plus de clauses (de $n=6$ à $n=14$) : la contrainte <<~pas deux chats voisins~>> est écrite pour chaque paire de régions et chaque case, ce qui fait de l'ordre de $K^2NM$ clauses. Il en résulte aussi un temps de compilation plus long (3~s pour $n=12$, contre 0,1~s). Le modèle~2 raisonne directement sur les cases, ses clauses sont courtes et propagent immédiatement : un chat en une case élimine ses voisines, sa ligne, sa colonne et sa région.
+
+\paragraph{6.4 : contrainte redondante.} On ajoute au modèle~2 <<~au moins un chat par région~>> avec une liste en compréhension (extension décrite plus bas) :
+\begin{verbatim}
+forall z in Zone {
+    constraint atLeastOne(cat[i][j] for i in 1..N, j in 1..M where region[i][j] = z);
+}
+\end{verbatim}
+Sans compréhension, il faudrait écrire une grosse disjonction avec des variables auxiliaires ; nous avons préféré étendre le langage (c'est aussi une question optionnelle). Comparaison sur les mêmes grilles (médiane et pire cas sur 5, en secondes) :
+
+\begin{center}
+\small
+\begin{tabular}{rllll}
+\toprule
+$n$ & \multicolumn{2}{c}{\f{optimized}} & \multicolumn{2}{c}{\f{dpll}}\\
+ & modèle 2 & avec la règle & modèle 2 & avec la règle\\
+\midrule
+10 & 0,04 / 0,3 & 0,00 / 0,0 & 0,03 / 0,1 & 0,01 / 0,1\\
+12 & 3,97 / 10,0 & 0,01 / 0,0 & 1,62 / 9,9 & 0,03 / 1,2\\
+14 & 2,61 / 34,1 & 0,02 / 0,2 & 0,08 / 0,6 & 0,04 / 0,9\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+La règle ajoute seulement $K$ clauses (de 6 à 14 sur nos grilles), mais le temps du pire cas passe de 34~s à 0,2~s pour \f{optimized}. Elle est conséquence des autres règles, mais le solveur doit la redécouvrir par exploration. Écrite explicitement, une région sans chat est détectée dès que ses cases sont éliminées (propagation unitaire), et surtout l'heuristique de branchement de \f{optimized} (H8, partie~I) s'appuie sur les clauses positives <<~au moins un chat dans la région~>> pour choisir la région la plus contrainte ; sans elles il ne reste que les clauses positives des lignes et colonnes. Nous n'avons pas isolé séparément les deux effets (nous n'avons pas désactivé H8), cette explication reste donc une hypothèse.
+
+\paragraph{6.5 : grilles quelconques.} Modèle général : \f{atMostOne} par ligne et par colonne, pas de voisins, et \f{exactlyOne} par région (compréhension). Il se lit comme les règles du jeu pour $N$, $M$, $K$ libres. Pour le vérifier, \f{tests/test\_meowdoku.py} tire 40 grilles rectangulaires aléatoires ($N,M\le5$, $K\le 6$ régions connexes, générées par \f{grille\_aleatoire}) et compare la réponse SAT/UNSAT du modèle (avec les deux encodages) à une recherche exhaustive (\f{recherche\_exhaustive} : une case par région, toutes combinaisons) ; toute solution trouvée est validée par \f{est\_valide}. Les réponses coïncident ; le test impose qu'il y ait des cas SAT et des cas UNSAT parmi les grilles tirées.
+
+\paragraph{6.6 : conclusion.} Dans nos mesures, le choix du modèle pèse beaucoup plus que le choix du solveur. Pour $n=12$, passer du modèle~1 au modèle~2 fait passer la majorité des grilles d'un dépassement du temps limite à quelques secondes, et ajouter une règle redondante de $K$ clauses divise le temps par plus de 100. À modèle fixé, passer du solveur \f{dpll} (partie~I, choix aléatoire) au solveur \f{optimized} (partie~I, avec ses heuristiques) joue bien moins : \f{optimized} est plus rapide sur le modèle~1 (1,78~s contre 8,01~s pour $n=10$), mais ne fait pas mieux et parfois moins bien sur le modèle~2 ($n=14$ : médiane 2,61~s contre 0,08~s, pire cas 34~s contre 0,6~s). Nous pensons que son heuristique, conçue pour l'encodage de la partie~I, convient moins à ces CNF ; nous ne l'avons pas vérifié. Limites de ces mesures : 5 grilles par taille, une seule exécution chacune, quatre processus en parallèle, et des temps très dispersés d'une grille à l'autre.
+
+\section*{Questions optionnelles}
+
+Traité : listes en compréhension en argument d'une globale, \f{atLeastOne(cat[i][j] for i in 1..N, j in 1..M where region[i][j] = z)} (utilisées en 6.4 et 6.5) ; c'est notre solution à la question 6.4, il n'y a donc pas d'autre version à comparer. \f{for} et \f{where} deviennent des mots réservés, et la compréhension doit être le seul argument de la globale. Compteur séquentiel de Sinz : voir Q4. Non traité : l'équivalence \f{<->}, \f{count}/\f{sum}, l'encodage par ordre, les autres modèles.
+
+\end{document}
